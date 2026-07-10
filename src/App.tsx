@@ -1,0 +1,196 @@
+/**
+ * App.tsx
+ * -----------------------------------------------------------------------
+ * 전체 화면 플로우(타이틀 -> 카운트다운 -> 플레이 -> 일시정지/게임오버)를 조립하는 최상위 컴포넌트.
+ * PRD 4.1 사용자 시나리오의 순서를 그대로 따른다.
+ * 이 컴포넌트는 화면 전환/레이아웃만 담당하며, 실제 게임 로직은 useGameEngine(엔진 훅)에,
+ * 이펙트는 useEffects에, 사운드는 useSound에 위임한다 (관심사 분리).
+ */
+
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { previewNext } from "./engine";
+import { useGameEngine } from "./hooks/useGameEngine";
+import { useEffects } from "./hooks/useEffects";
+import { useSound } from "./hooks/useSound";
+import { useHighScore } from "./hooks/useHighScore";
+import { GameBoard } from "./components/GameBoard";
+import { HoldPanel } from "./components/HoldPanel";
+import { NextQueue } from "./components/NextQueue";
+import { ScoreBoard } from "./components/ScoreBoard";
+import { EffectPopups } from "./components/effects/EffectPopups";
+import { TitleScreen } from "./components/screens/TitleScreen";
+import { CountdownOverlay } from "./components/screens/CountdownOverlay";
+import { PauseOverlay } from "./components/screens/PauseOverlay";
+import { GameOverScreen } from "./components/screens/GameOverScreen";
+
+/** 화면 흐름 단계 (엔진의 GameStatus와는 별개인, 순수 UI 레이어의 상태) */
+type AppPhase = "title" | "countdown" | "game";
+
+/** 카운트다운 시작 값 (3, 2, 1 -> 0은 "GO!" 표시) */
+const COUNTDOWN_START = 3;
+/** 카운트다운 한 단계당 대기 시간(ms) */
+const COUNTDOWN_STEP_MS = 700;
+/** "GO!" 표시 후 실제 게임 시작까지 대기 시간(ms) */
+const COUNTDOWN_GO_MS = 450;
+
+function App() {
+  const { enabled: soundEnabled, toggle: toggleSound, sounds, music } = useSound();
+  const { state, ghost, hardDropTrail, start, restart, resume } = useGameEngine({ sounds });
+  const { highScore, submitScore } = useHighScore();
+  const { shake, popups } = useEffects(state.lastScoreEvent);
+
+  // 엔진 상태가 "playing"일 때만 배경음악을 재생하고, 그 외(일시정지/게임오버/준비)에는 멈춘다.
+  useEffect(() => {
+    if (state.status === "playing") {
+      music.start();
+    } else {
+      music.stop();
+    }
+  }, [state.status, music]);
+
+  const [phase, setPhase] = useState<AppPhase>("title");
+  const [countdownValue, setCountdownValue] = useState<number | null>(null);
+  const [isNewHighScore, setIsNewHighScore] = useState(false);
+
+  /** "시작하기" 클릭: 카운트다운(3,2,1) 단계로 진입한다 (PRD 4.1 2단계) */
+  const handleStartClick = useCallback(() => {
+    // 이 onClick 핸들러 안에서 직접 사운드를 재생해, 실제 클릭 제스처 안에서 AudioContext가
+    // 확실하게 생성/resume되도록 한다 (일부 브라우저는 전역 리스너를 통한 언락을 인정하지 않는다).
+    sounds.uiSelect();
+    setIsNewHighScore(false);
+    setCountdownValue(COUNTDOWN_START);
+    setPhase("countdown");
+  }, [sounds]);
+
+  // 카운트다운 진행: 1초 간격으로 감소시키다가 0이 되면 "GO!"를 잠깐 보여준 뒤 실제 엔진을 시작한다.
+  useEffect(() => {
+    if (phase !== "countdown" || countdownValue === null) return undefined;
+
+    if (countdownValue > 0) {
+      sounds.countdownTick();
+      const timer = window.setTimeout(() => {
+        setCountdownValue((prev) => (prev !== null ? prev - 1 : null));
+      }, COUNTDOWN_STEP_MS);
+      return () => window.clearTimeout(timer);
+    }
+
+    const timer = window.setTimeout(() => {
+      start();
+      setCountdownValue(null);
+      setPhase("game");
+    }, COUNTDOWN_GO_MS);
+    return () => window.clearTimeout(timer);
+  }, [phase, countdownValue, start, sounds]);
+
+  // 게임 오버 전환 시점에 최종 점수를 하이스코어로 제출한다.
+  useEffect(() => {
+    if (state.status === "gameover") {
+      setIsNewHighScore(submitScore(state.score));
+    }
+  }, [state.status, state.score, submitScore]);
+
+  /** 게임 오버/일시정지 메뉴의 "다시하기": 카운트다운 없이 즉시 새 게임을 시작한다 */
+  const handleRestart = useCallback(() => {
+    setIsNewHighScore(false);
+    restart();
+  }, [restart]);
+
+  /** 게임 오버/일시정지 메뉴의 "메인으로": 타이틀 화면으로 복귀한다 */
+  const handleMainMenu = useCallback(() => {
+    setPhase("title");
+  }, []);
+
+  // 넥스트 큐 미리보기(5개)는 pieceQueue 참조가 바뀔 때만 새로 계산한다.
+  const nextPreview = useMemo(() => previewNext(state.pieceQueue, 5), [state.pieceQueue]);
+
+  return (
+    <div className="flex h-full w-full items-center justify-center overflow-hidden bg-[#0a0a0f] p-4">
+      {phase === "title" && (
+        <TitleScreen
+          highScore={highScore}
+          soundEnabled={soundEnabled}
+          onStart={handleStartClick}
+          onToggleSound={toggleSound}
+          musicTracks={music.tracks}
+          musicTrackIndex={music.trackIndex}
+          onSelectMusicTrack={music.setTrackIndex}
+        />
+      )}
+
+      {phase !== "title" && (
+        <div className="flex items-start gap-4">
+          <div className="flex flex-col gap-4 pt-1">
+            <HoldPanel hold={state.hold} />
+            <button
+              type="button"
+              onClick={toggleSound}
+              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/50 transition hover:text-white/80"
+            >
+              {soundEnabled ? "sound: on" : "sound: off"}
+            </button>
+            <button
+              type="button"
+              onClick={() => music.setTrackIndex((music.trackIndex + 1) % music.tracks.length)}
+              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/50 transition hover:text-white/80"
+            >
+              ♪ {music.tracks[music.trackIndex]?.name ?? ""}
+            </button>
+            <div className="flex flex-col gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+              <label htmlFor="music-volume" className="text-xs text-white/50">
+                음악 볼륨 {Math.round(music.volume * 100)}%
+              </label>
+              <input
+                id="music-volume"
+                type="range"
+                min={0}
+                max={100}
+                value={Math.round(music.volume * 100)}
+                onChange={(e) => music.setVolume(Number(e.target.value) / 100)}
+                className="h-1.5 w-full cursor-pointer accent-cyan-400"
+              />
+            </div>
+          </div>
+
+          <div className="relative">
+            <GameBoard
+              board={state.board}
+              active={state.active}
+              ghost={ghost}
+              status={state.status}
+              lastScoreEvent={state.lastScoreEvent}
+              hardDropTrail={hardDropTrail}
+              shake={shake}
+            />
+            <EffectPopups popups={popups} />
+            {phase === "countdown" && countdownValue !== null && <CountdownOverlay value={countdownValue} />}
+            {state.status === "paused" && (
+              <PauseOverlay onResume={resume} onRestart={handleRestart} onMainMenu={handleMainMenu} />
+            )}
+            {state.status === "gameover" && (
+              <GameOverScreen
+                score={state.score}
+                highScore={highScore}
+                isNewHighScore={isNewHighScore}
+                onRestart={handleRestart}
+                onMainMenu={handleMainMenu}
+              />
+            )}
+          </div>
+
+          <div className="flex flex-col gap-4 pt-1">
+            <ScoreBoard
+              score={state.score}
+              level={state.level}
+              totalLinesCleared={state.totalLinesCleared}
+              combo={state.combo}
+              backToBack={state.backToBack}
+            />
+            <NextQueue upcoming={nextPreview} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default App;
