@@ -7,3 +7,4 @@ tetris-standalone.html
 *.local
 .DS_Store
 .vercel
+.claude
