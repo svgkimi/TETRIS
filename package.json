@@ -8,12 +8,14 @@
     "build": "tsc && vite build",
     "build:standalone": "tsc && vite build --config vite.standalone.config.ts",
     "preview": "vite preview",
+    "server": "node server/index.js",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
+    "ws": "^8.18.0",
     "zustand": "^4.5.5"
   },
   "devDependencies": {
