@@ -6,7 +6,7 @@
  * 엔진 로직과는 무관한 "표현(presentation)" 전용 데이터.
  */
 
-import type { TetrominoType } from "../engine";
+import type { BoardCell, TetrominoType } from "../engine";
 
 /** 블록 타입별 기본(면) 색상 - I=하늘색, O=노랑, T=보라, S=초록, Z=빨강, J=파랑, L=주황 */
 export const TETROMINO_COLORS: Record<TetrominoType, string> = {
@@ -29,6 +29,26 @@ export const TETROMINO_GLOW_COLORS: Record<TetrominoType, string> = {
   J: "#bfdbfe",
   L: "#fed7aa",
 };
+
+/**
+ * 대전(versus) 모드에서 상대에게 공격받아 올라오는 "GARBAGE" 셀 전용 색상.
+ * TetrominoType이 아니므로 위 TETROMINO_COLORS/TETROMINO_GLOW_COLORS(Record<TetrominoType, string>)에는
+ * 포함할 수 없어 별도 상수로 분리한다 (회색 계열, 다른 테트리미노와 명확히 구분).
+ */
+export const GARBAGE_COLOR = "#6b7280";
+export const GARBAGE_GLOW_COLOR = "#9ca3af";
+
+/**
+ * 보드 셀(BoardCell) 하나의 렌더링 색상(면/글로우)을 조회한다.
+ * "GARBAGE"는 별도 회색 상수를, 나머지 테트리미노 타입은 기존 색상 테이블을 사용한다.
+ * 입력: cell(BoardCell, null이 아니어야 함) / 출력: { color, glow }
+ */
+export function getCellColors(cell: Exclude<BoardCell, null>): { color: string; glow: string } {
+  if (cell === "GARBAGE") {
+    return { color: GARBAGE_COLOR, glow: GARBAGE_GLOW_COLOR };
+  }
+  return { color: TETROMINO_COLORS[cell], glow: TETROMINO_GLOW_COLORS[cell] };
+}
 
 /**
  * 16진수 색상 문자열을 rgba() 문자열로 변환한다. (반투명 렌더링용)

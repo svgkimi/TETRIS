@@ -27,7 +27,7 @@ import {
   type Position,
   type ScoreEvent,
 } from "../engine";
-import { hexToRgba, TETROMINO_COLORS, TETROMINO_GLOW_COLORS } from "../lib/colors";
+import { getCellColors, hexToRgba, TETROMINO_COLORS, TETROMINO_GLOW_COLORS } from "../lib/colors";
 import type { HardDropTrailInfo } from "../hooks/useGameEngine";
 import type { ShakeTrigger } from "../hooks/useEffects";
 
@@ -237,7 +237,8 @@ function GameBoardComponent({ board, active, ghost, status, lastScoreEvent, hard
         for (let x = 0; x < row.length; x++) {
           const cell = row[x];
           if (!cell) continue;
-          drawBlock(ctx, x, visibleY, TETROMINO_COLORS[cell], TETROMINO_GLOW_COLORS[cell], 1);
+          const { color, glow } = getCellColors(cell);
+          drawBlock(ctx, x, visibleY, color, glow, 1);
         }
       }
 

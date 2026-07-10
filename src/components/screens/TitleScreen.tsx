@@ -17,6 +17,8 @@ export interface TitleScreenProps {
   readonly musicTrackIndex: number;
   /** 배경음악 트랙을 선택했을 때 호출된다 */
   readonly onSelectMusicTrack: (index: number) => void;
+  /** "대전 모드" 버튼 클릭 시 호출된다. 전달되지 않으면 버튼 자체를 숨긴다 */
+  readonly onOpenMultiplayer?: () => void;
 }
 
 /** 조작법 안내 한 줄 항목 */
@@ -41,6 +43,7 @@ export function TitleScreen({
   musicTracks,
   musicTrackIndex,
   onSelectMusicTrack,
+  onOpenMultiplayer,
 }: TitleScreenProps) {
   return (
     <div className="flex h-full w-full flex-col items-center justify-center gap-8 text-white">
@@ -51,13 +54,25 @@ export function TitleScreen({
         <p className="text-sm tracking-[0.3em] text-white/40">SRS · HOLD · GHOST PIECE</p>
       </div>
 
-      <button
-        type="button"
-        onClick={onStart}
-        className="rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 px-10 py-3 text-lg font-bold text-black shadow-[0_0_30px_rgba(56,189,248,0.5)] transition hover:scale-105 hover:shadow-[0_0_45px_rgba(232,121,249,0.6)] active:scale-95"
-      >
-        시작하기
-      </button>
+      <div className="flex flex-col items-center gap-3">
+        <button
+          type="button"
+          onClick={onStart}
+          className="rounded-full bg-gradient-to-r from-cyan-400 to-fuchsia-500 px-10 py-3 text-lg font-bold text-black shadow-[0_0_30px_rgba(56,189,248,0.5)] transition hover:scale-105 hover:shadow-[0_0_45px_rgba(232,121,249,0.6)] active:scale-95"
+        >
+          시작하기
+        </button>
+
+        {onOpenMultiplayer && (
+          <button
+            type="button"
+            onClick={onOpenMultiplayer}
+            className="rounded-full border border-white/20 bg-white/5 px-8 py-2 text-sm font-bold text-white/80 transition hover:scale-105 hover:border-white/40 hover:text-white active:scale-95"
+          >
+            대전 모드 (1:1)
+          </button>
+        )}
+      </div>
 
       <div className="text-center text-sm text-white/60">
         최고 점수 <span className="font-mono font-bold text-amber-300">{highScore.toLocaleString("en-US")}</span>

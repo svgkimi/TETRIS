@@ -19,6 +19,7 @@ import {
   createInitialState,
   getGhostPiece,
   type ActivePiece,
+  type EngineAction,
   type EngineState,
   type LineClearCategory,
   type RotationState,
@@ -53,6 +54,11 @@ export interface UseGameEngineResult {
   readonly restart: (seed?: number) => void;
   readonly pause: () => void;
   readonly resume: () => void;
+  /**
+   * 엔진 리듀서에 임의의 EngineAction을 직접 전달한다 (예: 대전 모드의 RECEIVE_GARBAGE).
+   * 싱글플레이 흐름에서는 사용하지 않아도 되며, start/restart/pause/resume이 대부분의 경우를 커버한다.
+   */
+  readonly dispatch: (action: EngineAction) => void;
 }
 
 /** 자동 반복(DAS: Delayed Auto Shift) 대상이 되는 액션 종류 */
@@ -308,5 +314,5 @@ export function useGameEngine(options?: UseGameEngineOptions): UseGameEngineResu
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const ghost = useMemo(() => getGhostPiece(state), [state.board, state.active]);
 
-  return { state, ghost, hardDropTrail, start, restart, pause, resume };
+  return { state, ghost, hardDropTrail, start, restart, pause, resume, dispatch: applyAndSet };
 }
