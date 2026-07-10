@@ -1,0 +1,8 @@
+node_modules
+dist
+dist-ssr
+dist-standalone
+tetris-standalone.html
+*.tsbuildinfo
+*.local
+.DS_Store
