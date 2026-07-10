@@ -17,6 +17,7 @@
  */
 
 import { checkCollision, createEmptyBoard, lockPieceToBoard } from "./board";
+import { addGarbageLines } from "./battle";
 import { refillQueue, takeNextPiece } from "./bag";
 import { calculateGhostPiece, hardDrop, moveDown, moveHorizontal } from "./movement";
 import { processLineClear } from "./lineClear";
@@ -33,17 +34,19 @@ import {
   HARD_DROP_SCORE_PER_CELL,
   SOFT_DROP_SCORE_PER_CELL,
 } from "./scoring";
-import type {
-  ActivePiece,
-  Board,
-  EngineAction,
-  EngineState,
-  HoldState,
-  LockDelayState,
-  RandomFn,
-  RotationDirection,
-  ScoreEvent,
-  TetrominoType,
+import {
+  BOARD_TOTAL_HEIGHT,
+  BOARD_WIDTH,
+  type ActivePiece,
+  type Board,
+  type EngineAction,
+  type EngineState,
+  type HoldState,
+  type LockDelayState,
+  type RandomFn,
+  type RotationDirection,
+  type ScoreEvent,
+  type TetrominoType,
 } from "./types";
 
 /** 락 다운(Lock Delay) 기본 유예시간 (PRD 2.5: 기본 0.5초) */
@@ -285,6 +288,47 @@ function applyHold(state: EngineState): EngineState {
 }
 
 /**
+ * 대전(versus) 모드 전용: 상대방으로부터 가비지 라인을 수신했을 때 처리하는 함수.
+ * gap(구멍) 위치는 7-bag용 `state.random`과는 완전히 분리된 순수 `Math.random()`으로 뽑는다 —
+ * 두 플레이어가 동일 시드로 같은 피스 시퀀스를 공유해야 하므로, `state.random`을 여기서
+ * 소비하면 그 소비 횟수가 플레이어마다 달라져 이후 피스 시퀀스가 어긋나게 된다.
+ * 입력: state, lines(삽입할 가비지 행 수) / 출력: 새 EngineState
+ * - status가 "playing"이 아니면 아무 변화 없이 그대로 반환한다.
+ * - 활성 피스가 있다면 스택이 밀려 올라간 만큼 위치(y)도 함께 밀어 올린다.
+ * - 밀어 올린 뒤 활성 피스가 다른 블록과 겹치면(Block Out) 즉시 게임오버 처리한다.
+ */
+function applyReceiveGarbage(state: EngineState, lines: number): EngineState {
+  if (state.status !== "playing") return state;
+  if (lines <= 0) return state;
+
+  // addGarbageLines는 내부적으로 count를 BOARD_TOTAL_HEIGHT로 clamp한다.
+  // 활성 피스 위치도 "실제로 스택이 밀려 올라간 만큼"만 이동해야 하므로,
+  // 여기서도 동일하게 clamp된 값을 사용해야 한다 — 그렇지 않으면 lines가
+  // 보드 전체 높이를 초과할 때 board 이동량과 piece 이동량이 어긋난다.
+  const appliedLines = Math.min(lines, BOARD_TOTAL_HEIGHT);
+  const gapColumn = Math.floor(Math.random() * BOARD_WIDTH);
+  const nextBoard = addGarbageLines(state.board, lines, gapColumn);
+
+  if (!state.active) {
+    return { ...state, board: nextBoard };
+  }
+
+  const movedActive: ActivePiece = {
+    ...state.active,
+    position: { ...state.active.position, y: state.active.position.y - appliedLines },
+  };
+
+  const gameOver = checkCollision(nextBoard, movedActive);
+
+  return {
+    ...state,
+    board: nextBoard,
+    active: movedActive,
+    status: gameOver ? "gameover" : state.status,
+  };
+}
+
+/**
  * 게임 시작/재시작 처리: 완전히 새로운 상태를 만들고 첫 피스를 스폰한다.
  * 입력: seed(선택, 결정론적 테스트용) / 출력: 새 EngineState (status: "playing" 또는 즉시 "gameover")
  */
@@ -360,6 +404,8 @@ export function applyAction(state: EngineState, action: EngineAction): EngineSta
       return applyHold(state);
     case "TICK":
       return tick(state, action.deltaMs);
+    case "RECEIVE_GARBAGE":
+      return applyReceiveGarbage(state, action.lines);
     default: {
       const exhaustiveCheck: never = action;
       return exhaustiveCheck;
