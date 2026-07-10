@@ -6,3 +6,4 @@ tetris-standalone.html
 *.tsbuildinfo
 *.local
 .DS_Store
+.vercel
