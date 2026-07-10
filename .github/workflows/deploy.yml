@@ -1,0 +1,57 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 같은 배포 그룹의 동시 실행을 막되, 진행 중인 배포를 취소하지는 않는다 (GitHub Pages 표준 설정)
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: 저장소 체크아웃
+        uses: actions/checkout@v4
+
+      - name: Node.js 설정
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 테스트 실행
+        run: npm test
+
+      - name: 프로덕션 빌드 (GitHub Pages용)
+        run: npm run build
+
+      - name: GitHub Pages 설정
+        uses: actions/configure-pages@v5
+
+      - name: 빌드 결과물 업로드
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: GitHub Pages에 배포
+        id: deployment
+        uses: actions/deploy-pages@v4
