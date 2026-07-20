@@ -325,6 +325,49 @@ export function useSound(): UseSoundResult {
     musicGain.gain.linearRampToValueAtTime(baseLevel, now + durationSec);
   }, []);
 
+  /** 노이즈 버스트용으로 재사용하는 화이트노이즈 버퍼 (지연 생성) */
+  const noiseBufferRef = useRef<AudioBuffer | null>(null);
+
+  /**
+   * 짧은 필터드 노이즈 버스트를 재생한다 (타격감·"착지 먼지" 임팩트용).
+   * 입력: duration(초), gain, filterFreq(로우패스 컷오프 Hz), delay(초) / 출력: 없음
+   */
+  const playNoise = useCallback(
+    (options: { duration: number; gain: number; filterFreq: number; delay?: number }) => {
+      if (!enabledRef.current) return;
+      const ctx = ensureContext();
+      const bus = sfxGainRef.current;
+      if (!ctx || !bus) return;
+
+      const schedule = () => {
+        if (!noiseBufferRef.current || noiseBufferRef.current.sampleRate !== ctx.sampleRate) {
+          const buffer = ctx.createBuffer(1, ctx.sampleRate * 0.3, ctx.sampleRate);
+          const data = buffer.getChannelData(0);
+          for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+          noiseBufferRef.current = buffer;
+        }
+        const startTime = ctx.currentTime + (options.delay ?? 0);
+        const source = ctx.createBufferSource();
+        source.buffer = noiseBufferRef.current;
+        const filter = ctx.createBiquadFilter();
+        filter.type = "lowpass";
+        filter.frequency.setValueAtTime(options.filterFreq, startTime);
+        const gainNode = ctx.createGain();
+        gainNode.gain.setValueAtTime(options.gain, startTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, startTime + options.duration);
+        source.connect(filter);
+        filter.connect(gainNode);
+        gainNode.connect(bus);
+        source.start(startTime);
+        source.stop(startTime + options.duration + 0.02);
+      };
+
+      if (ctx.state === "running") schedule();
+      else void ctx.resume().then(() => enabledRef.current && schedule());
+    },
+    [ensureContext],
+  );
+
   const sounds = useMemo<SoundEffects>(() => {
     /**
      * 지워진 줄 수(1~4)에 비례해 점점 커지고 화려해지는 라인 클리어 임팩트음을 재생한다.
@@ -345,10 +388,14 @@ export function useSound(): UseSoundResult {
           delay: i * 0.045,
         });
       }
+      // 노이즈 "샤악" 스위프 레이어로 지워지는 느낌을 강조한다 (줄 수에 비례해 길고 크게)
+      playNoise({ duration: 0.08 + n * 0.04, gain: 0.05 + n * 0.02, filterFreq: 2500 + n * 800 });
       if (n >= 3) {
         // 3줄 이상은 저음 임팩트를 더해 타격감을 강조한다
         playTone({ frequency: 90, duration: 0.22, type: "sine", gain: 0.1 + n * 0.02, delay: 0.02 });
       }
+      // 마무리 반짝임(스파클) — 줄 수가 많을수록 한 옥타브 높은 음을 덧입힌다
+      playTone({ frequency: base * 2 + n * 220, duration: 0.12, type: "sine", gain: 0.05 + n * 0.01, delay: n * 0.045 + 0.03 });
       if (extraFlourish) {
         [1047, 1319].forEach((freq, i) => {
           playTone({
@@ -363,43 +410,60 @@ export function useSound(): UseSoundResult {
     };
 
     return {
-      // square/sawtooth는 배음이 많아 거칠고 "깨지는" 느낌이 나기 쉬워, 자주 재생되는
-      // 이동/하드드롭/락 효과음은 훨씬 부드러운 triangle/sine 파형으로 바꿨다.
-      move: () => playTone({ frequency: 300, duration: 0.025, type: "triangle", gain: 0.035 }),
-      rotate: () => playTone({ frequency: 340, duration: 0.05, type: "triangle", gain: 0.06 }),
-      softDrop: () => playTone({ frequency: 260, duration: 0.02, type: "triangle", gain: 0.025 }),
-      hardDrop: () => {
-        // 저음 스윕이 배경음악 베이스와 겹치지 않도록 잠깐 배경음악을 덕킹한다
-        duckMusic(0.35, 0.28);
-        playTone({ frequency: 150, duration: 0.14, type: "sine", slideTo: 50, gain: 0.14 });
+      // 이동: 짧은 피치 스윕 틱 — 단일 톤보다 "달칵" 느낌이 살아난다
+      move: () => playTone({ frequency: 420, duration: 0.03, type: "triangle", slideTo: 300, gain: 0.045 }),
+      // 회전: 위로 튀는 2단 블립
+      rotate: () => {
+        playTone({ frequency: 330, duration: 0.04, type: "triangle", gain: 0.05 });
+        playTone({ frequency: 520, duration: 0.05, type: "triangle", gain: 0.055, delay: 0.03 });
       },
-      hold: () => playTone({ frequency: 400, duration: 0.08, type: "triangle", gain: 0.06 }),
-      // 락(고정) 효과음은 아주 짧고 부드러운 사인파 클릭음으로, 하드드롭/배경음악 베이스와 겹쳐도 거슬리지 않게 한다
-      lock: () => playTone({ frequency: 760, duration: 0.02, type: "sine", gain: 0.03 }),
+      softDrop: () => playTone({ frequency: 260, duration: 0.02, type: "triangle", gain: 0.025 }),
+      // 하드드롭: 저음 "쿵" 스윕 + 노이즈 착지 임팩트 레이어
+      hardDrop: () => {
+        duckMusic(0.4, 0.3);
+        playTone({ frequency: 170, duration: 0.16, type: "sine", slideTo: 45, gain: 0.17 });
+        playTone({ frequency: 80, duration: 0.1, type: "triangle", gain: 0.1 });
+        playNoise({ duration: 0.09, gain: 0.12, filterFreq: 1400 });
+      },
+      hold: () => {
+        playTone({ frequency: 400, duration: 0.06, type: "triangle", gain: 0.055 });
+        playTone({ frequency: 600, duration: 0.07, type: "sine", gain: 0.05, delay: 0.05 });
+      },
+      // 락(고정): 클릭 + 옅은 노이즈로 "탁" 하는 접지감
+      lock: () => {
+        playTone({ frequency: 760, duration: 0.025, type: "sine", gain: 0.04 });
+        playNoise({ duration: 0.04, gain: 0.045, filterFreq: 2500 });
+      },
       lineClear: (lines: number) => playClearImpact(lines, false),
       tetris: () => playClearImpact(4, true),
       tSpin: (lines: number) => {
         const n = Math.max(1, lines);
         duckMusic(0.3 + n * 0.05, 0.5);
-        playTone({ frequency: 300, duration: 0.1, type: "sawtooth", gain: 0.07 + n * 0.015 });
-        playTone({ frequency: 600, duration: 0.15, type: "sine", gain: 0.07 + n * 0.015, delay: 0.08 });
+        playTone({ frequency: 250, duration: 0.12, type: "sawtooth", slideTo: 500, gain: 0.08 + n * 0.015 });
+        playTone({ frequency: 600, duration: 0.14, type: "sine", gain: 0.08 + n * 0.015, delay: 0.08 });
+        playTone({ frequency: 900, duration: 0.16, type: "sine", gain: 0.06 + n * 0.015, delay: 0.15 });
+        playNoise({ duration: 0.08, gain: 0.06, filterFreq: 3000, delay: 0.02 });
       },
       levelUp: () => {
-        duckMusic(0.3, 0.6);
+        duckMusic(0.35, 0.8);
+        // 상승 팡파레 + 마지막 음에 옥타브 하모니를 겹쳐 화사하게
         [392, 523, 659, 784].forEach((freq, i) => {
-          playTone({ frequency: freq, duration: 0.14, type: "triangle", gain: 0.09, delay: i * 0.06 });
+          playTone({ frequency: freq, duration: 0.15, type: "triangle", gain: 0.1, delay: i * 0.07 });
         });
+        playTone({ frequency: 1568, duration: 0.25, type: "sine", gain: 0.07, delay: 0.28 });
+        playNoise({ duration: 0.2, gain: 0.05, filterFreq: 5000, delay: 0.28 });
       },
       gameOver: () => {
         duckMusic(0.6, 1.4);
         [392, 330, 262, 196].forEach((freq, i) => {
-          playTone({ frequency: freq, duration: 0.3, type: "sawtooth", gain: 0.1, delay: i * 0.18 });
+          playTone({ frequency: freq, duration: 0.32, type: "sawtooth", slideTo: freq * 0.92, gain: 0.1, delay: i * 0.18 });
         });
+        playTone({ frequency: 60, duration: 0.5, type: "sine", gain: 0.1, delay: 0.7 });
       },
       countdownTick: () => playTone({ frequency: 523, duration: 0.08, type: "sine", gain: 0.08 }),
       uiSelect: () => playTone({ frequency: 660, duration: 0.05, type: "triangle", gain: 0.06 }),
     };
-  }, [playTone, duckMusic]);
+  }, [playTone, playNoise, duckMusic]);
 
   const toggle = useCallback(() => setEnabled((prev) => !prev), []);
 
