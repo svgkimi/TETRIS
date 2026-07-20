@@ -1,12 +1,12 @@
 /**
  * useMultiplayer.ts
  * -----------------------------------------------------------------------
- * 1:1 대전 모드를 위한 순수 네트워킹 훅.
+ * 1:1 대전 모드를 위한 순수 네트워킹 훅 (v2 프로토콜).
  *
- * server/index.js의 WebSocket 릴레이 서버와 통신하며 방 생성/입장, ready 신호,
- * 공격 라인/보드 요약 중계, 매치 시작 시드 수신, top-out 통지를 담당한다.
- * 게임 규칙(충돌 판정, 가비지 라인 계산 등)은 전혀 알지 못하며, 오직 "연결 상태"와
- * "메시지 송수신"만 다룬다 (관심사 분리 — 게임 엔진은 src/engine, 이 훅은 네트워킹만).
+ * server/index.js의 WebSocket 릴레이 서버와 통신하며 방 목록 조회, 방 생성(이름/코드/모드),
+ * 입장, ready 신호(재대결 포함), 공격 라인/보드 요약 중계, 매치 시작 시드 수신,
+ * top-out(점수 포함) 통지를 담당한다. 게임 규칙(충돌 판정, 가비지 계산 등)은 전혀 알지 못하며,
+ * 오직 "연결 상태"와 "메시지 송수신"만 다룬다 (관심사 분리 — 게임 엔진은 src/engine).
  *
  * 서버 프로토콜 명세는 server/index.js 상단 주석을 참고할 것.
  */
@@ -20,14 +20,43 @@ import { useCallback, useEffect, useRef, useState } from "react";
 const BATTLE_SERVER_URL: string =
   (import.meta.env.VITE_BATTLE_SERVER_URL as string | undefined) ?? "ws://localhost:8787";
 
+/** 대전 모드 종류: 공격전(가비지 주고받기) | 스코어전(점수 비교) */
+export type BattleMode = "attack" | "score";
+
+/** 방 목록(room_list)의 방 하나 요약 */
+export interface RoomInfo {
+  readonly roomId: string;
+  readonly name: string;
+  readonly hasCode: boolean;
+  readonly mode: BattleMode;
+  readonly playerCount: number;
+}
+
+/** 방 생성 옵션 (모두 선택 — 이름 없으면 서버가 자동 부여, 코드 없으면 공개방) */
+export interface CreateRoomOptions {
+  readonly name?: string;
+  readonly code?: string;
+  readonly mode?: BattleMode;
+}
+
+/**
+ * match_start 수신 정보. seed가 (극히 드물게) 같은 값으로 두 번 와도 재대결 감지가 안전하도록
+ * 수신할 때마다 token을 증가시켜 항상 "새 객체 + 새 token"으로 노출한다.
+ */
+export interface MatchStartInfo {
+  readonly seed: number;
+  readonly mode: BattleMode;
+  readonly token: number;
+}
+
 /** 클라이언트가 겪을 수 있는 연결/매치 상태 */
 export type ConnectionStatus =
-  | "idle" // 아직 연결 안 함
+  | "idle" // 로비 (방 미소속). 소켓은 연결돼 있을 수도, 아닐 수도 있다
   | "connecting" // 소켓 연결 및 방 생성/입장 요청 진행 중
-  | "waiting_for_opponent" // 방 생성 완료, 상대 입장 대기 중 (host)
-  | "joined" // 방에 들어감, 매치 시작(ready) 대기 중 (guest 초기 상태 또는 host가 상대 입장 직후)
+  | "waiting_for_opponent" // 방 소속, 상대 입장 대기 중 (host)
+  | "joined" // 방에 2명 모임, 매치 시작(ready) 대기 중
   | "in_match" // match_start 수신, 실제 대전 진행 중
-  | "opponent_left" // 상대가 연결을 끊음 (서버가 방을 정리함)
+  | "opponent_left" // 상대가 방을 나감/연결 끊김 (나는 방에 남아있음)
   | "error"; // 연결 실패 또는 서버 에러
 
 /** 이 방에서 내가 맡은 역할 */
@@ -35,14 +64,15 @@ export type MultiplayerRole = "host" | "guest";
 
 /** 서버가 보내는 메시지의 판별 유니온 (Server -> Client). server/index.js 프로토콜과 1:1 대응 */
 type ServerMessage =
-  | { type: "room_created"; roomCode: string }
-  | { type: "join_ok"; roomCode: string }
+  | { type: "room_list"; rooms: RoomInfo[] }
+  | { type: "room_created"; roomId: string; name: string; mode: BattleMode; hasCode: boolean }
+  | { type: "join_ok"; roomId: string; name: string; mode: BattleMode }
   | { type: "join_error"; reason: string }
   | { type: "opponent_joined" }
-  | { type: "match_start"; seed: number }
+  | { type: "match_start"; seed: number; mode: BattleMode }
   | { type: "opponent_attack"; lines: number }
   | { type: "opponent_board_sync"; summary: unknown }
-  | { type: "opponent_top_out" }
+  | { type: "opponent_top_out"; score?: number }
   | { type: "opponent_left" }
   | { type: "error"; message: string };
 
@@ -60,30 +90,42 @@ function isServerMessage(value: unknown): value is ServerMessage {
 export interface UseMultiplayerResult {
   /** 현재 연결/매치 상태 */
   readonly status: ConnectionStatus;
-  /** 현재 참여 중인 방 코드 (아직 없으면 null) */
-  readonly roomCode: string | null;
+  /** 마지막으로 받은 공개 방 목록 (room_list) */
+  readonly rooms: readonly RoomInfo[];
+  /** 현재 참여 중인 방 id (아직 없으면 null) */
+  readonly roomId: string | null;
+  /** 현재 참여 중인 방 이름 (아직 없으면 null) */
+  readonly roomName: string | null;
+  /** 현재 방의 대전 모드 (아직 없으면 null) */
+  readonly mode: BattleMode | null;
   /** 방에서 내 역할 (host/guest, 아직 미정이면 null) */
   readonly role: MultiplayerRole | null;
-  /** match_start로 수신한 시드. 이 값이 갱신되는 것을 대전 시작 트리거로 사용할 수 있다 */
-  readonly matchSeed: number | null;
+  /** match_start로 수신한 시드/모드/토큰. token이 바뀔 때마다 새 매치(재대결 포함)로 취급하면 된다 */
+  readonly matchStart: MatchStartInfo | null;
   /** 최근 에러 메시지 (없으면 null) */
   readonly errorMessage: string | null;
   /** 상대방이 마지막으로 보낸 보드 요약 (opponent_board_sync). 형식은 호출부(엔진 연동 레이어)가 정의 */
   readonly opponentBoardSummary: unknown | null;
-  /** 상대방이 게임오버(top_out) 되었는지 여부 */
+  /** 상대방이 (이번 매치에서) 게임오버(top_out) 되었는지 여부 */
   readonly opponentTopOut: boolean;
-  /** 방을 새로 생성한다 (host). 소켓이 없으면 이때 지연 생성한다 */
-  readonly createRoom: () => void;
-  /** 주어진 코드의 방에 입장한다 (guest). 소켓이 없으면 이때 지연 생성한다 */
-  readonly joinRoom: (roomCode: string) => void;
-  /** 카운트다운 완료 등 "플레이 준비됨"을 서버에 알린다. 양쪽 모두 보내면 서버가 match_start를 내려준다 */
+  /** 상대방이 top_out과 함께 보낸 최종 점수 (스코어전 비교용, 없으면 null) */
+  readonly opponentFinalScore: number | null;
+  /** 공개 방 목록을 서버에 요청한다. 소켓이 없으면 이때 지연 생성한다 */
+  readonly listRooms: () => void;
+  /** 방을 새로 생성한다 (host). 옵션: 이름/입장코드/모드 (모두 선택) */
+  readonly createRoom: (options?: CreateRoomOptions) => void;
+  /** 주어진 방에 입장한다 (guest). 코드 방이면 code 필수 */
+  readonly joinRoom: (roomId: string, code?: string) => void;
+  /** 연결은 유지한 채 방에서만 나가 로비로 돌아간다 */
+  readonly leaveRoom: () => void;
+  /** "플레이 준비됨"을 서버에 알린다. 양쪽 모두 보내면 서버가 match_start를 내려준다 (재대결도 동일) */
   readonly sendReady: () => void;
-  /** 상대에게 보낼 공격(가비지) 라인 수를 전송한다 */
+  /** 상대에게 보낼 공격(가비지) 라인 수를 전송한다 (스코어전에서는 서버가 무시) */
   readonly sendAttack: (lines: number) => void;
   /** 상대방 미리보기 렌더링용 가벼운 보드 요약을 전송한다 (형식 자유, opaque) */
   readonly sendBoardSync: (summary: unknown) => void;
-  /** 내가 게임오버되었음을 서버(및 상대방)에 통지한다 */
-  readonly sendTopOut: () => void;
+  /** 내가 게임오버되었음을 서버(및 상대방)에 통지한다. score는 스코어전 비교용 */
+  readonly sendTopOut: (score?: number) => void;
   /** 소켓을 닫고 모든 상태를 초기화한다 */
   readonly disconnect: () => void;
   /**
@@ -96,72 +138,98 @@ export interface UseMultiplayerResult {
 }
 
 /**
- * 대전 모드 네트워킹 훅.
+ * 대전 모드 네트워킹 훅 (v2).
  * 순수 연결 상태 레이어로, 게임 엔진(src/engine)을 전혀 참조하지 않는다.
  * 입력: 없음 / 출력: UseMultiplayerResult
  */
 export function useMultiplayer(): UseMultiplayerResult {
   const [status, setStatus] = useState<ConnectionStatus>("idle");
-  const [roomCode, setRoomCode] = useState<string | null>(null);
+  const [rooms, setRooms] = useState<readonly RoomInfo[]>([]);
+  const [roomId, setRoomId] = useState<string | null>(null);
+  const [roomName, setRoomName] = useState<string | null>(null);
+  const [mode, setMode] = useState<BattleMode | null>(null);
   const [role, setRole] = useState<MultiplayerRole | null>(null);
-  const [matchSeed, setMatchSeed] = useState<number | null>(null);
+  const [matchStart, setMatchStart] = useState<MatchStartInfo | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [opponentBoardSummary, setOpponentBoardSummary] = useState<unknown | null>(null);
   const [opponentTopOut, setOpponentTopOut] = useState<boolean>(false);
+  const [opponentFinalScore, setOpponentFinalScore] = useState<number | null>(null);
 
   const socketRef = useRef<WebSocket | null>(null);
   // disconnect()/언마운트로 인한 의도된 종료인지 구분하는 플래그. 이게 없으면 정상 종료도 "error"로 오인된다
   const manualCloseRef = useRef<boolean>(false);
   // 공격 수신 구독자 목록. React state가 아닌 ref로 관리해 렌더 배칭과 무관하게 즉시(동기) 통지한다
   const attackListenersRef = useRef<Set<(lines: number) => void>>(new Set());
+  // match_start마다 증가시키는 토큰 카운터 (재대결에서 같은 seed가 와도 새 매치로 감지되도록)
+  const matchTokenRef = useRef<number>(0);
+
+  /** 방 소속과 무관한 "매치 진행 상태"만 초기화한다 (새 매치/방 이동 시 공용). 입력·출력: 없음 */
+  const resetMatchState = useCallback(() => {
+    setOpponentBoardSummary(null);
+    setOpponentTopOut(false);
+    setOpponentFinalScore(null);
+  }, []);
 
   /** 서버로부터 받은 메시지 한 건을 해석해 상태를 갱신한다. 입력: ServerMessage / 출력: 없음 */
-  const handleServerMessage = useCallback((message: ServerMessage) => {
-    switch (message.type) {
-      case "room_created":
-        setRoomCode(message.roomCode);
-        setRole("host");
-        setStatus("waiting_for_opponent");
-        break;
-      case "join_ok":
-        setRoomCode(message.roomCode);
-        setRole("guest");
-        setStatus("joined");
-        break;
-      case "join_error":
-        setErrorMessage(message.reason);
-        setStatus("error");
-        break;
-      case "opponent_joined":
-        // host 입장에서 상대가 들어와 매치 준비가 가능해짐
-        setStatus("joined");
-        break;
-      case "match_start":
-        setMatchSeed(message.seed);
-        setOpponentTopOut(false);
-        setStatus("in_match");
-        break;
-      case "opponent_attack":
-        // setState 없이 구독자에게 즉시 동기 통지 -> 렌더 배칭으로 인한 공격 유실을 원천 차단
-        attackListenersRef.current.forEach((listener) => listener(message.lines));
-        break;
-      case "opponent_board_sync":
-        setOpponentBoardSummary(message.summary);
-        break;
-      case "opponent_top_out":
-        setOpponentTopOut(true);
-        break;
-      case "opponent_left":
-        setStatus("opponent_left");
-        break;
-      case "error":
-        setErrorMessage(message.message);
-        setStatus("error");
-        break;
-      default:
-        break;
-    }
-  }, []);
+  const handleServerMessage = useCallback(
+    (message: ServerMessage) => {
+      switch (message.type) {
+        case "room_list":
+          setRooms(Array.isArray(message.rooms) ? message.rooms : []);
+          break;
+        case "room_created":
+          setRoomId(message.roomId);
+          setRoomName(message.name);
+          setMode(message.mode);
+          setRole("host");
+          setStatus("waiting_for_opponent");
+          break;
+        case "join_ok":
+          setRoomId(message.roomId);
+          setRoomName(message.name);
+          setMode(message.mode);
+          setRole("guest");
+          setStatus("joined");
+          break;
+        case "join_error":
+          setErrorMessage(message.reason);
+          setStatus("error");
+          break;
+        case "opponent_joined":
+          // host 입장에서 상대가 들어와 매치 준비가 가능해짐
+          setStatus("joined");
+          break;
+        case "match_start":
+          // 재대결 포함: 올 때마다 token을 증가시켜 항상 "새 객체"로 노출 -> 참조 비교만으로 새 매치 감지 가능
+          matchTokenRef.current += 1;
+          setMatchStart({ seed: message.seed, mode: message.mode, token: matchTokenRef.current });
+          resetMatchState();
+          setStatus("in_match");
+          break;
+        case "opponent_attack":
+          // setState 없이 구독자에게 즉시 동기 통지 -> 렌더 배칭으로 인한 공격 유실을 원천 차단
+          attackListenersRef.current.forEach((listener) => listener(message.lines));
+          break;
+        case "opponent_board_sync":
+          setOpponentBoardSummary(message.summary);
+          break;
+        case "opponent_top_out":
+          setOpponentTopOut(true);
+          setOpponentFinalScore(typeof message.score === "number" ? message.score : null);
+          break;
+        case "opponent_left":
+          setStatus("opponent_left");
+          break;
+        case "error":
+          setErrorMessage(message.message);
+          setStatus("error");
+          break;
+        default:
+          break;
+      }
+    },
+    [resetMatchState],
+  );
 
   /** 현재 소켓의 이벤트 리스너를 해제하고 연결을 닫는다. 입력: 없음 / 출력: 없음 */
   const teardownSocket = useCallback(() => {
@@ -226,26 +294,60 @@ export function useMultiplayer(): UseMultiplayerResult {
     }
   }, []);
 
-  /** 방을 새로 생성한다 (host). 입력: 없음 / 출력: 없음 */
-  const createRoom = useCallback(() => {
-    setErrorMessage(null);
-    setStatus("connecting");
+  /** 공개 방 목록을 요청한다. 입력: 없음 / 출력: 없음 */
+  const listRooms = useCallback(() => {
     const socket = ensureSocket();
-    sendWhenOpen(socket, { type: "create_room" });
+    sendWhenOpen(socket, { type: "list_rooms" });
   }, [ensureSocket, sendWhenOpen]);
 
-  /** 주어진 코드의 방에 입장한다 (guest). 입력: 방 코드 문자열 / 출력: 없음 */
-  const joinRoom = useCallback(
-    (code: string) => {
+  /** 방을 새로 생성한다 (host). 입력: CreateRoomOptions(선택) / 출력: 없음 */
+  const createRoom = useCallback(
+    (options?: CreateRoomOptions) => {
       setErrorMessage(null);
       setStatus("connecting");
+      resetMatchState();
+      setMatchStart(null);
       const socket = ensureSocket();
-      sendWhenOpen(socket, { type: "join_room", roomCode: code });
+      sendWhenOpen(socket, {
+        type: "create_room",
+        ...(options?.name ? { name: options.name } : {}),
+        ...(options?.code ? { code: options.code } : {}),
+        ...(options?.mode ? { mode: options.mode } : {}),
+      });
     },
-    [ensureSocket, sendWhenOpen],
+    [ensureSocket, sendWhenOpen, resetMatchState],
   );
 
-  /** "플레이 준비됨"을 서버에 알린다. 입력: 없음 / 출력: 없음 */
+  /** 주어진 방에 입장한다 (guest). 입력: roomId, code(코드 방일 때) / 출력: 없음 */
+  const joinRoom = useCallback(
+    (targetRoomId: string, code?: string) => {
+      setErrorMessage(null);
+      setStatus("connecting");
+      resetMatchState();
+      setMatchStart(null);
+      const socket = ensureSocket();
+      sendWhenOpen(socket, { type: "join_room", roomId: targetRoomId, ...(code ? { code } : {}) });
+    },
+    [ensureSocket, sendWhenOpen, resetMatchState],
+  );
+
+  /** 연결은 유지한 채 방에서만 나가고 로비 상태(idle)로 되돌린다. 입력·출력: 없음 */
+  const leaveRoom = useCallback(() => {
+    const socket = socketRef.current;
+    if (socket && socket.readyState === WebSocket.OPEN) {
+      socket.send(JSON.stringify({ type: "leave_room" }));
+    }
+    setStatus("idle");
+    setRoomId(null);
+    setRoomName(null);
+    setMode(null);
+    setRole(null);
+    setMatchStart(null);
+    setErrorMessage(null);
+    resetMatchState();
+  }, [resetMatchState]);
+
+  /** "플레이 준비됨"을 서버에 알린다 (첫 매치·재대결 공통). 입력: 없음 / 출력: 없음 */
   const sendReady = useCallback(() => {
     const socket = socketRef.current;
     if (!socket) return;
@@ -272,25 +374,30 @@ export function useMultiplayer(): UseMultiplayerResult {
     [sendWhenOpen],
   );
 
-  /** 내가 게임오버되었음을 서버에 통지한다. 입력: 없음 / 출력: 없음 */
-  const sendTopOut = useCallback(() => {
-    const socket = socketRef.current;
-    if (!socket) return;
-    sendWhenOpen(socket, { type: "top_out" });
-  }, [sendWhenOpen]);
+  /** 내가 게임오버되었음을 서버에 통지한다. 입력: 최종 점수(선택, 스코어전용) / 출력: 없음 */
+  const sendTopOut = useCallback(
+    (score?: number) => {
+      const socket = socketRef.current;
+      if (!socket) return;
+      sendWhenOpen(socket, { type: "top_out", ...(typeof score === "number" ? { score } : {}) });
+    },
+    [sendWhenOpen],
+  );
 
   /** 소켓을 닫고 모든 네트워킹 상태를 초기값으로 되돌린다. 입력: 없음 / 출력: 없음 */
   const disconnect = useCallback(() => {
     manualCloseRef.current = true;
     teardownSocket();
     setStatus("idle");
-    setRoomCode(null);
+    setRooms([]);
+    setRoomId(null);
+    setRoomName(null);
+    setMode(null);
     setRole(null);
-    setMatchSeed(null);
+    setMatchStart(null);
     setErrorMessage(null);
-    setOpponentBoardSummary(null);
-    setOpponentTopOut(false);
-  }, [teardownSocket]);
+    resetMatchState();
+  }, [teardownSocket, resetMatchState]);
 
   /** 상대 공격 이벤트 구독. 입력: 콜백 / 출력: 구독 해제 함수 */
   const onOpponentAttack = useCallback((callback: (lines: number) => void) => {
@@ -310,14 +417,20 @@ export function useMultiplayer(): UseMultiplayerResult {
 
   return {
     status,
-    roomCode,
+    rooms,
+    roomId,
+    roomName,
+    mode,
     role,
-    matchSeed,
+    matchStart,
     errorMessage,
     opponentBoardSummary,
     opponentTopOut,
+    opponentFinalScore,
+    listRooms,
     createRoom,
     joinRoom,
+    leaveRoom,
     sendReady,
     sendAttack,
     sendBoardSync,
