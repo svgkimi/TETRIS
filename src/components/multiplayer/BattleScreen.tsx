@@ -17,12 +17,14 @@ import { calculateAttackLines, previewNext, type Board } from "../../engine";
 import { useGameEngine } from "../../hooks/useGameEngine";
 import { useSound } from "../../hooks/useSound";
 import { useEffects } from "../../hooks/useEffects";
+import { useIsMobile } from "../../hooks/useIsMobile";
 import type { MatchStartInfo, UseMultiplayerResult } from "../../hooks/useMultiplayer";
 import { GameBoard } from "../GameBoard";
 import { HoldPanel } from "../HoldPanel";
 import { NextQueue } from "../NextQueue";
 import { ScoreBoard } from "../ScoreBoard";
 import { SoundControl } from "../SoundControl";
+import { TouchControls } from "../TouchControls";
 import { EffectPopups } from "../effects/EffectPopups";
 import { OpponentBoardPreview } from "./OpponentBoardPreview";
 
@@ -67,8 +69,9 @@ export interface BattleScreenProps {
  */
 export function BattleScreen({ matchStart, roomName, network, onLeaveRoom, onExit }: BattleScreenProps) {
   const { enabled: soundEnabled, toggle: toggleSound, sounds, music } = useSound();
-  const { state, ghost, hardDropTrail, start, dispatch } = useGameEngine({ sounds });
+  const { state, ghost, hardDropTrail, start, dispatch, pause, resume, triggerHardDrop } = useGameEngine({ sounds });
   const { shake, popups } = useEffects(state.lastScoreEvent);
+  const isMobile = useIsMobile();
 
   const {
     status: networkStatus,
@@ -200,7 +203,11 @@ export function BattleScreen({ matchStart, roomName, network, onLeaveRoom, onExi
     isScoreMode && state.status === "gameover" && !opponentTopOut && result === "none" && !opponentLeft;
 
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center gap-3 overflow-hidden bg-[#0a0a0f] p-4">
+    <div
+      className={`flex h-full w-full flex-col items-center bg-[#0a0a0f] p-4 ${
+        isMobile ? "justify-start gap-2 overflow-y-auto pb-32" : "justify-center gap-3 overflow-hidden"
+      }`}
+    >
       {/* ---- 상단: 방 이름 + 모드 표시 ---- */}
       <div className="flex items-center gap-3 text-sm">
         <span className="font-bold text-white/80">{roomName ?? "대전"}</span>
@@ -209,8 +216,15 @@ export function BattleScreen({ matchStart, roomName, network, onLeaveRoom, onExi
         </span>
       </div>
 
-      <div className="flex items-start gap-4">
-        <div className="flex flex-col gap-4 pt-1">
+      {/* ---- 모바일: 상대방 보드는 아주 작게 상단에 배치 ---- */}
+      {isMobile && (
+        <div className="flex w-full max-w-md items-center justify-center scale-[0.55] origin-top">
+          <OpponentBoardPreview board={opponentSummary?.board ?? null} label="상대방" />
+        </div>
+      )}
+
+      <div className={`flex items-start gap-4 ${isMobile ? "flex-wrap justify-center gap-2" : ""}`}>
+        <div className={`flex flex-col gap-4 pt-1 ${isMobile ? "scale-[0.6] origin-top-right gap-1" : ""}`}>
           <HoldPanel hold={state.hold} />
           <ScoreBoard
             score={state.score}
@@ -220,15 +234,17 @@ export function BattleScreen({ matchStart, roomName, network, onLeaveRoom, onExi
             backToBack={state.backToBack}
           />
           <NextQueue upcoming={nextPreview} />
-          <SoundControl
-            soundEnabled={soundEnabled}
-            onToggleSound={toggleSound}
-            tracks={music.tracks}
-            trackIndex={music.trackIndex}
-            onSelectTrack={music.setTrackIndex}
-            volume={music.volume}
-            onChangeVolume={music.setVolume}
-          />
+          {!isMobile && (
+            <SoundControl
+              soundEnabled={soundEnabled}
+              onToggleSound={toggleSound}
+              tracks={music.tracks}
+              trackIndex={music.trackIndex}
+              onSelectTrack={music.setTrackIndex}
+              volume={music.volume}
+              onChangeVolume={music.setVolume}
+            />
+          )}
         </div>
 
         <div
@@ -347,8 +363,8 @@ export function BattleScreen({ matchStart, roomName, network, onLeaveRoom, onExi
           )}
         </div>
 
-        <div className="flex flex-col gap-4 pt-1">
-          <OpponentBoardPreview board={opponentSummary?.board ?? null} label="상대방" />
+        <div className={`flex flex-col gap-4 pt-1 ${isMobile ? "scale-[0.6] origin-top-left gap-1" : ""}`}>
+          {!isMobile && <OpponentBoardPreview board={opponentSummary?.board ?? null} label="상대방" />}
           {opponentSummary && (
             <div className="flex w-full flex-col gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/60">
               <div className="flex justify-between">
@@ -367,6 +383,17 @@ export function BattleScreen({ matchStart, roomName, network, onLeaveRoom, onExi
           )}
         </div>
       </div>
+
+      {isMobile && (
+        <TouchControls
+          dispatch={dispatch}
+          triggerHardDrop={triggerHardDrop}
+          status={state.status}
+          onPause={pause}
+          onResume={resume}
+          sounds={sounds}
+        />
+      )}
     </div>
   );
 }

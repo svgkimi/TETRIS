@@ -17,11 +17,13 @@ import { useGameEngine } from "../hooks/useGameEngine";
 import { useEffects } from "../hooks/useEffects";
 import { useSound } from "../hooks/useSound";
 import { useHighScore } from "../hooks/useHighScore";
+import { useIsMobile } from "../hooks/useIsMobile";
 import { GameBoard } from "./GameBoard";
 import { HoldPanel } from "./HoldPanel";
 import { NextQueue } from "./NextQueue";
 import { ScoreBoard } from "./ScoreBoard";
 import { SoundControl } from "./SoundControl";
+import { TouchControls } from "./TouchControls";
 import { EffectPopups } from "./effects/EffectPopups";
 import { TitleScreen } from "./screens/TitleScreen";
 import { CountdownOverlay } from "./screens/CountdownOverlay";
@@ -46,9 +48,12 @@ export interface SinglePlayerAppProps {
 
 function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
   const { enabled: soundEnabled, toggle: toggleSound, sounds, music } = useSound();
-  const { state, ghost, hardDropTrail, start, restart, resume } = useGameEngine({ sounds });
+  const { state, ghost, hardDropTrail, start, restart, pause, resume, dispatch, triggerHardDrop } = useGameEngine({
+    sounds,
+  });
   const { highScore, submitScore } = useHighScore();
   const { shake, popups } = useEffects(state.lastScoreEvent);
+  const isMobile = useIsMobile();
 
   // 엔진 상태가 "playing"일 때만 배경음악을 재생하고, 그 외(일시정지/게임오버/준비)에는 멈춘다.
   useEffect(() => {
@@ -115,7 +120,11 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
   const nextPreview = useMemo(() => previewNext(state.pieceQueue, 5), [state.pieceQueue]);
 
   return (
-    <div className="flex h-full w-full items-center justify-center overflow-hidden bg-[#0a0a0f] p-4">
+    <div
+      className={`flex h-full w-full items-center justify-center overflow-hidden bg-[#0a0a0f] p-4 ${
+        isMobile && phase !== "title" ? "flex-col justify-start overflow-y-auto pb-32" : ""
+      }`}
+    >
       {phase === "title" && (
         <TitleScreen
           highScore={highScore}
@@ -129,7 +138,7 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
         />
       )}
 
-      {phase !== "title" && (
+      {phase !== "title" && !isMobile && (
         <div className="flex items-start gap-4">
           <div className="flex flex-col gap-4 pt-1">
             <HoldPanel hold={state.hold} />
@@ -180,6 +189,66 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
             />
             <NextQueue upcoming={nextPreview} />
           </div>
+        </div>
+      )}
+
+      {/* ---- 모바일 레이아웃: 상단에 컴팩트 HOLD/SCORE/NEXT, 중앙에 축소된 보드, 하단에 터치 컨트롤 ---- */}
+      {phase !== "title" && isMobile && (
+        <div className="flex w-full flex-col items-center gap-2 pt-1">
+          <div className="flex h-[86px] w-full max-w-md items-start justify-between gap-1 overflow-hidden text-[10px]">
+            <div className="w-1/4 scale-[0.55] origin-top-left">
+              <HoldPanel hold={state.hold} />
+            </div>
+            <div className="w-1/2 scale-[0.55] origin-top">
+              <ScoreBoard
+                score={state.score}
+                level={state.level}
+                totalLinesCleared={state.totalLinesCleared}
+                combo={state.combo}
+                backToBack={state.backToBack}
+              />
+            </div>
+            <div className="w-1/4 scale-[0.55] origin-top-right">
+              <NextQueue upcoming={nextPreview} />
+            </div>
+          </div>
+
+          <div className="flex w-full justify-center overflow-x-auto">
+            <div className="relative">
+              <GameBoard
+                board={state.board}
+                active={state.active}
+                ghost={ghost}
+                status={state.status}
+                lastScoreEvent={state.lastScoreEvent}
+                hardDropTrail={hardDropTrail}
+                shake={shake}
+              />
+              <EffectPopups popups={popups} />
+              {phase === "countdown" && countdownValue !== null && <CountdownOverlay value={countdownValue} />}
+              {state.status === "paused" && (
+                <PauseOverlay onResume={resume} onRestart={handleRestart} onMainMenu={handleMainMenu} />
+              )}
+              {state.status === "gameover" && (
+                <GameOverScreen
+                  score={state.score}
+                  highScore={highScore}
+                  isNewHighScore={isNewHighScore}
+                  onRestart={handleRestart}
+                  onMainMenu={handleMainMenu}
+                />
+              )}
+            </div>
+          </div>
+
+          <TouchControls
+            dispatch={dispatch}
+            triggerHardDrop={triggerHardDrop}
+            status={state.status}
+            onPause={pause}
+            onResume={resume}
+            sounds={sounds}
+          />
         </div>
       )}
     </div>

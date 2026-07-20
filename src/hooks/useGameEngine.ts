@@ -59,6 +59,11 @@ export interface UseGameEngineResult {
    * 싱글플레이 흐름에서는 사용하지 않아도 되며, start/restart/pause/resume이 대부분의 경우를 커버한다.
    */
   readonly dispatch: (action: EngineAction) => void;
+  /**
+   * 하드 드롭을 트리거한다 (잔상 이펙트 계산 + HARD_DROP 액션 + 효과음까지 포함).
+   * 키보드(Space)와 터치 컨트롤(TouchControls)이 동일한 하드 드롭 경험을 갖도록 노출한다.
+   */
+  readonly triggerHardDrop: () => void;
 }
 
 /** 자동 반복(DAS: Delayed Auto Shift) 대상이 되는 액션 종류 */
@@ -314,5 +319,5 @@ export function useGameEngine(options?: UseGameEngineOptions): UseGameEngineResu
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const ghost = useMemo(() => getGhostPiece(state), [state.board, state.active]);
 
-  return { state, ghost, hardDropTrail, start, restart, pause, resume, dispatch: applyAndSet };
+  return { state, ghost, hardDropTrail, start, restart, pause, resume, dispatch: applyAndSet, triggerHardDrop };
 }
