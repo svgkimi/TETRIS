@@ -121,6 +121,14 @@ export function calculateGravityIntervalMs(level: number): number {
 }
 
 /**
+ * 레벨 1(기본 속도) 대비 현재 레벨의 낙하 속도 배율을 계산한다. (UI 표시용)
+ * 입력: level / 출력: 배속 (레벨 1 = 1, 레벨 5 = 1.25, 상한 20)
+ */
+export function calculateSpeedMultiplier(level: number): number {
+  return calculateGravityIntervalMs(1) / calculateGravityIntervalMs(level);
+}
+
+/**
  * 클리어 발생 후 다음 콤보 카운트를 계산한다.
  * 입력: previousCombo, category(이번 락에서 지워진 줄 카테고리) / 출력: 다음 combo 값
  * 규칙: 줄이 지워지면 콤보 +1(콤보 없음 상태(0)에서 시작 시 1), 지워지지 않으면 0으로 리셋.
