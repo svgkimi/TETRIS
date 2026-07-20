@@ -21,6 +21,7 @@ import { GameBoard } from "./GameBoard";
 import { HoldPanel } from "./HoldPanel";
 import { NextQueue } from "./NextQueue";
 import { ScoreBoard } from "./ScoreBoard";
+import { SoundControl } from "./SoundControl";
 import { EffectPopups } from "./effects/EffectPopups";
 import { TitleScreen } from "./screens/TitleScreen";
 import { CountdownOverlay } from "./screens/CountdownOverlay";
@@ -132,34 +133,15 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
         <div className="flex items-start gap-4">
           <div className="flex flex-col gap-4 pt-1">
             <HoldPanel hold={state.hold} />
-            <button
-              type="button"
-              onClick={toggleSound}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/50 transition hover:text-white/80"
-            >
-              {soundEnabled ? "sound: on" : "sound: off"}
-            </button>
-            <button
-              type="button"
-              onClick={() => music.setTrackIndex((music.trackIndex + 1) % music.tracks.length)}
-              className="rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/50 transition hover:text-white/80"
-            >
-              ♪ {music.tracks[music.trackIndex]?.name ?? ""}
-            </button>
-            <div className="flex flex-col gap-1 rounded-lg border border-white/10 bg-white/5 px-3 py-2">
-              <label htmlFor="music-volume" className="text-xs text-white/50">
-                음악 볼륨 {Math.round(music.volume * 100)}%
-              </label>
-              <input
-                id="music-volume"
-                type="range"
-                min={0}
-                max={100}
-                value={Math.round(music.volume * 100)}
-                onChange={(e) => music.setVolume(Number(e.target.value) / 100)}
-                className="h-1.5 w-full cursor-pointer accent-cyan-400"
-              />
-            </div>
+            <SoundControl
+              soundEnabled={soundEnabled}
+              onToggleSound={toggleSound}
+              tracks={music.tracks}
+              trackIndex={music.trackIndex}
+              onSelectTrack={music.setTrackIndex}
+              volume={music.volume}
+              onChangeVolume={music.setVolume}
+            />
           </div>
 
           <div className="relative">
