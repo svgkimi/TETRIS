@@ -8,6 +8,7 @@
  */
 
 import { useState } from "react";
+import { SpeakerOffIcon, SpeakerOnIcon } from "../icons";
 
 /** TitleScreen props */
 export interface TitleScreenProps {
@@ -154,13 +155,13 @@ export function TitleScreen({
           title="사운드 설정"
           aria-label="사운드 설정"
           aria-expanded={showSettings}
-          className={`flex h-10 w-10 items-center justify-center rounded-full border text-base transition ${
+          className={`flex h-10 w-10 items-center justify-center rounded-full border transition ${
             showSettings
               ? "border-white/30 bg-white/10 text-white"
               : "border-white/10 bg-white/5 text-white/50 hover:border-white/25 hover:text-white/80"
           }`}
         >
-          {soundEnabled ? "🔊" : "🔇"}
+          {soundEnabled ? <SpeakerOnIcon className="h-4 w-4" /> : <SpeakerOffIcon className="h-4 w-4" />}
         </button>
       </div>
     </div>

@@ -2,11 +2,12 @@
  * SoundControl.tsx
  * -----------------------------------------------------------------------
  * 사운드 토글/배경음악 트랙/음악 볼륨을 하나로 묶은 컴팩트 설정 컨트롤.
- * 기본 상태에서는 아이콘 한 줄만 보여주고, 톱니(⚙) 클릭 시 트랙/볼륨 패널이 펼쳐진다.
+ * 기본 상태에서는 아이콘 한 줄만 보여주고, 톱니 아이콘 클릭 시 트랙/볼륨 패널이 펼쳐진다.
  * SinglePlayerApp / BattleScreen 사이드바에서 공용으로 사용하는 순수 프레젠테이션 컴포넌트.
  */
 
 import { memo, useState } from "react";
+import { GearIcon, MusicNoteIcon, SpeakerOffIcon, SpeakerOnIcon } from "./icons";
 
 /** SoundControl props */
 export interface SoundControlProps {
@@ -50,14 +51,15 @@ function SoundControlComponent({
           onClick={onToggleSound}
           title={soundEnabled ? "사운드 끄기" : "사운드 켜기"}
           aria-label={soundEnabled ? "사운드 끄기" : "사운드 켜기"}
-          className={`rounded-md px-2 py-1 text-sm transition hover:bg-white/10 ${
+          className={`rounded-md p-1.5 transition hover:bg-white/10 ${
             soundEnabled ? "text-cyan-300" : "text-white/30"
           }`}
         >
-          {soundEnabled ? "🔊" : "🔇"}
+          {soundEnabled ? <SpeakerOnIcon className="h-4 w-4" /> : <SpeakerOffIcon className="h-4 w-4" />}
         </button>
-        <span className="truncate text-[10px] tracking-wide text-white/30">
-          ♪ {tracks[trackIndex]?.name ?? ""}
+        <span className="flex min-w-0 items-center gap-1 truncate text-[10px] tracking-wide text-white/30">
+          <MusicNoteIcon className="h-3 w-3 shrink-0" />
+          {tracks[trackIndex]?.name ?? ""}
         </span>
         <button
           type="button"
@@ -65,11 +67,11 @@ function SoundControlComponent({
           title="음악 설정"
           aria-label="음악 설정"
           aria-expanded={expanded}
-          className={`rounded-md px-2 py-1 text-sm transition hover:bg-white/10 ${
+          className={`rounded-md p-1.5 transition hover:bg-white/10 ${
             expanded ? "text-white/80" : "text-white/40"
           }`}
         >
-          ⚙
+          <GearIcon className="h-4 w-4" />
         </button>
       </div>
 
