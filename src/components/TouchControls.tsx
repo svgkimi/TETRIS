@@ -16,9 +16,10 @@
  *   보드 영역이 항상 남은 공간에 맞춰 줄어들도록 만들어(GameBoard의 responsive 모드),
  *   이 컨트롤 바가 보드 하단을 겹쳐 가리는 문제 자체가 구조적으로 발생하지 않는다.
  *
- * 배치(사용자 요청): 좌/우 두 열, 각 열은 1행(큰 버튼 1개) + 2행(작은 버튼 2개) 그리드.
- *   좌측 1행 = HOLD, 좌측 2행 = ◀ ▶ (이동)
- *   우측 1행 = ▼ 소프트드롭("꾹 눌러 내리기"), 우측 2행 = 회전 + 하드드롭
+ * 배치(사용자 요청): 좌/우 두 열이 각각 화면 좌/우 가장자리에 붙는다(justify-between).
+ *   좌측 1행 = HOLD(justify-end로 2행의 오른쪽 버튼 ▶ 바로 위에 정렬), 좌측 2행 = ◀ ▶ (이동)
+ *   우측 1행 = ▼ 소프트드롭(justify-end로 2행의 오른쪽 버튼 DROP 바로 위에 정렬), 우측 2행 = 회전 + 하드드롭
+ * 1행은 상위 컴포넌트(SinglePlayerApp)가 위쪽 여백을 없애 보드 하단선에 바로 붙도록 배치한다.
  *
  * 입력: TouchControlsProps(엔진 dispatch류 콜백, 현재 상태) / 출력: 터치 버튼 레이아웃 JSX
  */
@@ -110,16 +111,17 @@ const ACCENT_DROP =
   "border-rose-300/60 bg-gradient-to-b from-rose-400/35 to-rose-600/15 text-rose-100 shadow-[0_2px_0_0_rgba(190,18,60,0.6),0_0_18px_rgba(251,113,133,0.45)] active:bg-rose-400/45";
 
 /**
- * 모든 버튼을 같은 크기(정사각형, flex-1)로 통일한다 - 이전에 HOLD/소프트드롭만
- * 2칸을 합친 넓은 버튼이라 나머지와 크기가 안 맞는다는 피드백을 반영했다.
- * 1행에 버튼이 하나뿐인 자리는 보이지 않는 스페이서로 같은 정사각형 크기만 차지해,
- * 2행 버튼들과 폭이 어긋나지 않으면서도 모든 버튼이 동일한 크기를 유지한다.
+ * 모든 버튼을 같은 크기(정사각형, 고정 64px)로 통일한다. flex-1(flex-basis:0%)로 늘어나는
+ * 방식은 쓰지 않는다 - 컬럼이 더 이상 stretch되지 않고 콘텐츠 크기에 맞춰 가장자리에
+ * 붙는 구조로 바뀌면서, flex-1 자식은 shrink-to-fit 계산에 자기 크기를 온전히 반영하지
+ * 못해(min-content 취급) 컬럼 전체가 쪼그라드는 문제가 있었다. 고정폭이면 이 문제가 없고,
+ * justify-end가 2행의 오른쪽 버튼 위에 1행 버튼을 정확히 정렬시킬 수 있다.
  */
-const SQUARE_BUTTON = "flex-1 aspect-square max-w-12 min-w-0";
-/** 아이콘 버튼(이동/소프트드롭/회전)의 폰트 크기 - 버튼 자체가 max-w-12(48px)로 고정 상한이라 텍스트도 고정값이면 충분하다 */
-const SQUARE_TEXT = "text-lg";
+const FIXED_BUTTON = "w-16 aspect-square";
+/** 아이콘 버튼(이동/소프트드롭/회전)의 폰트 크기 - 버튼이 커진 만큼 텍스트도 함께 키운다 */
+const SQUARE_TEXT = "text-2xl";
 /** HOLD/DROP처럼 정사각형 안에 짧은 텍스트가 들어가는 경우의 폰트 크기 */
-const SQUARE_LABEL_TEXT = "text-[10px]";
+const SQUARE_LABEL_TEXT = "text-xs";
 
 /** 모바일 전용 가상 게임패드. 데스크톱에서는 렌더링되지 않는다(호출부에서 useIsMobile로 조건부 렌더) */
 export function TouchControls({ dispatch, triggerHardDrop, status, sounds }: TouchControlsProps) {
@@ -173,29 +175,30 @@ export function TouchControls({ dispatch, triggerHardDrop, status, sounds }: Tou
 
   return (
     <div
-      className={`mx-auto flex w-full max-w-md touch-none select-none gap-3 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2 transition-opacity ${
+      className={`flex w-full touch-none select-none justify-between px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-opacity ${
         disabled ? "pointer-events-none opacity-30" : ""
       }`}
       style={{ touchAction: "none" }}
       data-testid="touch-controls"
     >
-      {/* 좌측 열: 1행 = HOLD(2행의 ◀▶ 사이 가운데에 오도록 justify-center로 정렬), 2행 = 좌/우 이동 */}
-      <div className="flex flex-1 flex-col gap-1.5">
-        <div className="flex justify-center gap-1.5">
+      {/* 좌측 열: 화면 왼쪽 가장자리에 붙는다(justify-between). 1행 = HOLD, justify-end로
+          2행의 오른쪽 버튼(▶) 바로 위에 오도록 정렬. 2행 = 좌/우 이동 */}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex w-full justify-end">
           <button
             type="button"
             aria-label="홀드"
             onPointerDown={handleHold}
-            className={`${BUTTON_BASE} ${ACCENT_HOLD} ${SQUARE_BUTTON} ${SQUARE_LABEL_TEXT}`}
+            className={`${BUTTON_BASE} ${ACCENT_HOLD} ${FIXED_BUTTON} ${SQUARE_LABEL_TEXT}`}
           >
             HOLD
           </button>
         </div>
-        <div className="flex justify-center gap-1.5">
+        <div className="flex gap-1.5">
           <button
             type="button"
             aria-label="왼쪽 이동"
-            className={`${BUTTON_BASE} ${ACCENT_MOVE} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
+            className={`${BUTTON_BASE} ${ACCENT_MOVE} ${FIXED_BUTTON} ${SQUARE_TEXT}`}
             {...leftRepeat}
           >
             ◀
@@ -203,7 +206,7 @@ export function TouchControls({ dispatch, triggerHardDrop, status, sounds }: Tou
           <button
             type="button"
             aria-label="오른쪽 이동"
-            className={`${BUTTON_BASE} ${ACCENT_MOVE} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
+            className={`${BUTTON_BASE} ${ACCENT_MOVE} ${FIXED_BUTTON} ${SQUARE_TEXT}`}
             {...rightRepeat}
           >
             ▶
@@ -211,24 +214,25 @@ export function TouchControls({ dispatch, triggerHardDrop, status, sounds }: Tou
         </div>
       </div>
 
-      {/* 우측 열: 1행 = 소프트드롭(2행의 회전/하드드롭 사이 가운데 정렬), 2행 = 회전 + 하드드롭 */}
-      <div className="flex flex-1 flex-col gap-1.5">
-        <div className="flex justify-center gap-1.5">
+      {/* 우측 열: 화면 오른쪽 가장자리에 붙는다. 1행 = 소프트드롭, justify-end로 2행의
+          오른쪽 버튼(DROP) 바로 위에 오도록 정렬. 2행 = 회전 + 하드드롭 */}
+      <div className="flex flex-col gap-1.5">
+        <div className="flex w-full justify-end">
           <button
             type="button"
             aria-label="소프트드롭"
-            className={`${BUTTON_BASE} ${ACCENT_SOFTDROP} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
+            className={`${BUTTON_BASE} ${ACCENT_SOFTDROP} ${FIXED_BUTTON} ${SQUARE_TEXT}`}
             {...softDropRepeat}
           >
             ▼
           </button>
         </div>
-        <div className="flex justify-center gap-1.5">
+        <div className="flex gap-1.5">
           <button
             type="button"
             aria-label="회전"
             onPointerDown={handleRotate}
-            className={`${BUTTON_BASE} ${ACCENT_ROTATE} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
+            className={`${BUTTON_BASE} ${ACCENT_ROTATE} ${FIXED_BUTTON} ${SQUARE_TEXT}`}
           >
             ↻
           </button>
@@ -236,7 +240,7 @@ export function TouchControls({ dispatch, triggerHardDrop, status, sounds }: Tou
             type="button"
             aria-label="하드드롭"
             onPointerDown={handleHardDrop}
-            className={`${BUTTON_BASE} ${ACCENT_DROP} ${SQUARE_BUTTON} ${SQUARE_LABEL_TEXT}`}
+            className={`${BUTTON_BASE} ${ACCENT_DROP} ${FIXED_BUTTON} ${SQUARE_LABEL_TEXT}`}
           >
             DROP
           </button>

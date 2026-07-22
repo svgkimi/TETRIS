@@ -200,9 +200,9 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
            하단에 터치 컨트롤 - 스크롤이 필요 없고, 보드 하단이 터치 컨트롤에 가려지는 일도
            구조적으로 발생하지 않는다. ---- */}
       {phase !== "title" && isMobile && (
-        <div className="flex h-full w-full flex-col items-center gap-2 px-3 pt-[max(0.5rem,env(safe-area-inset-top))]">
+        <div className="flex h-full w-full flex-col items-center px-3 pt-[max(0.5rem,env(safe-area-inset-top))]">
           {/* 점수 배너: 점수를 가장 크게 중앙에 두고(주인공), 일시정지는 우측 끝에 작게 */}
-          <div className="flex w-full max-w-md shrink-0 flex-col gap-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-sm">
+          <div className="mb-2 flex w-full max-w-md shrink-0 flex-col gap-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-sm">
             <div className="flex items-center justify-between gap-2">
               <span className="w-9 shrink-0" aria-hidden="true" />
               <span className="flex-1 text-center font-mono text-3xl font-black tracking-tight text-white drop-shadow-[0_0_14px_rgba(34,211,238,0.35)]">
@@ -236,7 +236,7 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
               </div>
             </div>
 
-            <div className="relative h-full flex-1">
+            <div className="relative h-full flex-1 self-stretch">
               <GameBoard
                 board={state.board}
                 active={state.active}

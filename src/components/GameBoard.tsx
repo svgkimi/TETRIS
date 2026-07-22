@@ -390,7 +390,10 @@ function GameBoardComponent({
   return (
     <div
       ref={containerRef}
-      className={responsive ? "relative flex h-full w-full items-center justify-center" : "relative"}
+      // items-end(세로는 하단 정렬): 보드가 폭 제약으로 컨테이너보다 짧게 렌더링될 때
+      // 남는 세로 공간이 위쪽에 생기도록 해, 보드의 실제 바닥선이 항상 이 영역의 맨 아래
+      // (=터치 컨트롤 1행 바로 위)에 붙도록 만든다. 가로는 그대로 가운데 정렬한다.
+      className={responsive ? "relative flex h-full w-full items-end justify-center" : "relative"}
     >
       <canvas
         ref={canvasRef}
