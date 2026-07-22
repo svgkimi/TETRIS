@@ -8,7 +8,8 @@
  * - 좌/우 이동, 소프트드롭: pointerdown 동안 DAS(최초 지연 후) + ARR(반복 간격)로 자동 반복한다.
  *   (useGameEngine의 키보드 DAS_DELAY_MS=150 / ARR_INTERVAL_MS=35와 동일한 값을 사용해
  *   키보드와 터치의 조작감을 통일한다.)
- * - 하드드롭/회전(시계·반시계)/홀드/일시정지: pointerdown 시 1회만 발동.
+ * - 하드드롭/회전(시계 방향 1개만 제공 - 버튼 수를 줄이기 위해 반시계 회전은 없앰)/홀드/일시정지:
+ *   pointerdown 시 1회만 발동.
  * - 모든 버튼은 touch-action: none + preventDefault로 스크롤/더블탭 확대/컨텍스트 메뉴를 막는다.
  *
  * 입력: TouchControlsProps(엔진 dispatch류 콜백, 현재 상태) / 출력: 하단 고정 터치 버튼 레이아웃 JSX
@@ -82,15 +83,18 @@ const BUTTON_BASE =
   "flex select-none items-center justify-center rounded-2xl border border-white/10 bg-white/5 font-bold text-white/80 shadow-[0_0_12px_rgba(0,0,0,0.4)] backdrop-blur-sm active:scale-95 active:bg-white/15 transition";
 
 /**
- * 주요 액션(이동/회전/드롭) 버튼 크기. 뷰포트 폭에 비례해 32px~56px 사이로 스케일되어,
- * 8개 버튼을 한 줄에 배치해도 어떤 폭의 모바일 화면에서도 화면 밖으로 잘리지 않는다.
+ * 버튼 크기를 고정 px/vw 계산식이 아니라 flexbox 비율로 결정한다: 각 버튼은
+ * flex-1(같은 그룹 내 동일 비율) + aspect-square로, 부모(그룹)에게 남는 너비를
+ * 자동으로 나눠 갖는다. 화면이 좁아지면 그룹 너비가 줄고 버튼도 함께 줄어들며,
+ * 화면이 넓어지면 max-width 상한까지 커진다 - 기기별 고정 breakpoint 없이
+ * 모든 화면 폭에서 항상 "그 화면에 맞는 크기"가 된다.
  */
-const PRIMARY_SIZE = "h-[clamp(2rem,11vw,3.5rem)] w-[clamp(2rem,11vw,3.5rem)]";
-/** 보조 액션(홀드/일시정지) 버튼 크기. 주요 버튼보다 한 단계 작게, 같은 방식으로 스케일된다. */
-const SECONDARY_SIZE = "h-[clamp(1.75rem,9vw,2.75rem)] w-[clamp(1.75rem,9vw,2.75rem)]";
-/** 버튼 안 아이콘/텍스트 크기도 버튼 크기에 맞춰 함께 스케일된다 */
-const PRIMARY_TEXT = "text-[clamp(1rem,5vw,1.5rem)]";
-const SECONDARY_TEXT = "text-[clamp(0.55rem,2.6vw,0.7rem)]";
+const PRIMARY_BUTTON = "flex-1 aspect-square max-w-16 min-w-0";
+/** 보조 액션(홀드/일시정지)은 주요 버튼보다 작은 그룹 비율(flex-[0.8])과 낮은 상한으로 한 단계 작게 유지 */
+const SECONDARY_BUTTON = "flex-1 aspect-square max-w-12 min-w-0";
+/** 아이콘/텍스트 크기는 버튼 한 변 길이에 비례(cqw 대신 %로 근사): 그룹의 실제 렌더 크기를 모르므로 상한 폭 대비 비율로 고정 */
+const PRIMARY_TEXT = "text-[clamp(0.9rem,6vw,1.5rem)]";
+const SECONDARY_TEXT = "text-[clamp(0.5rem,3vw,0.7rem)]";
 
 /** 모바일 전용 가상 게임패드. 데스크톱에서는 렌더링되지 않는다(호출부에서 useIsMobile로 조건부 렌더) */
 export function TouchControls({
@@ -128,19 +132,11 @@ export function TouchControls({
     [triggerHardDrop],
   );
 
-  const handleRotateCw = useCallback(
+  // 회전은 시계 방향 한 종류만 제공한다 (버튼 개수를 줄이기 위해 반시계 회전 버튼은 제거).
+  const handleRotate = useCallback(
     (event: React.PointerEvent) => {
       event.preventDefault();
       dispatch({ type: "ROTATE_CW" });
-      sounds?.rotate();
-    },
-    [dispatch, sounds],
-  );
-
-  const handleRotateCcw = useCallback(
-    (event: React.PointerEvent) => {
-      event.preventDefault();
-      dispatch({ type: "ROTATE_CCW" });
       sounds?.rotate();
     },
     [dispatch, sounds],
@@ -171,16 +167,16 @@ export function TouchControls({
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-40 mx-auto flex w-full max-w-md touch-none select-none items-end justify-between gap-1 px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
+      className="fixed inset-x-0 bottom-0 z-40 mx-auto flex w-full max-w-md touch-none select-none items-end gap-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
       style={{ touchAction: "none" }}
       data-testid="touch-controls"
     >
-      {/* 좌측: 이동(좌/우) + 소프트드롭 */}
-      <div className="flex items-center gap-1.5">
+      {/* 좌측: 이동(좌/우) + 소프트드롭 - 그룹 너비를 화면 폭에 맞춰 자동으로 나눠 갖는다 */}
+      <div className="flex flex-1 items-end gap-1.5">
         <button
           type="button"
           aria-label="왼쪽 이동"
-          className={`${BUTTON_BASE} ${PRIMARY_SIZE} ${PRIMARY_TEXT}`}
+          className={`${BUTTON_BASE} ${PRIMARY_BUTTON} ${PRIMARY_TEXT}`}
           {...leftRepeat}
         >
           ◀
@@ -188,7 +184,7 @@ export function TouchControls({
         <button
           type="button"
           aria-label="오른쪽 이동"
-          className={`${BUTTON_BASE} ${PRIMARY_SIZE} ${PRIMARY_TEXT}`}
+          className={`${BUTTON_BASE} ${PRIMARY_BUTTON} ${PRIMARY_TEXT}`}
           {...rightRepeat}
         >
           ▶
@@ -196,20 +192,20 @@ export function TouchControls({
         <button
           type="button"
           aria-label="소프트드롭"
-          className={`${BUTTON_BASE} ${PRIMARY_SIZE} ${PRIMARY_TEXT}`}
+          className={`${BUTTON_BASE} ${PRIMARY_BUTTON} ${PRIMARY_TEXT}`}
           {...softDropRepeat}
         >
           ▼
         </button>
       </div>
 
-      {/* 중앙: 홀드 + 일시정지 (보조 액션 - 크기를 한 단계 작게 통일) */}
-      <div className="flex items-center gap-1.5">
+      {/* 중앙: 홀드 + 일시정지 (보조 액션 - 그룹 자체를 좁게 잡아 버튼도 한 단계 작다) */}
+      <div className="flex flex-[0.8] items-end gap-1.5">
         <button
           type="button"
           aria-label="홀드"
           onPointerDown={handleHold}
-          className={`${BUTTON_BASE} ${SECONDARY_SIZE} ${SECONDARY_TEXT}`}
+          className={`${BUTTON_BASE} ${SECONDARY_BUTTON} ${SECONDARY_TEXT}`}
         >
           HOLD
         </button>
@@ -217,27 +213,19 @@ export function TouchControls({
           type="button"
           aria-label="일시정지"
           onPointerDown={handlePause}
-          className={`${BUTTON_BASE} ${SECONDARY_SIZE} ${PRIMARY_TEXT}`}
+          className={`${BUTTON_BASE} ${SECONDARY_BUTTON} ${PRIMARY_TEXT}`}
         >
           ❚❚
         </button>
       </div>
 
-      {/* 우측: 회전(반시계/시계) + 하드드롭 (드롭은 색상으로 강조, 크기는 통일) */}
-      <div className="flex items-center gap-1.5">
+      {/* 우측: 회전(시계 방향 하나만) + 하드드롭 (드롭은 색상으로 강조) */}
+      <div className="flex flex-1 items-end gap-1.5">
         <button
           type="button"
-          aria-label="반시계 회전"
-          onPointerDown={handleRotateCcw}
-          className={`${BUTTON_BASE} ${PRIMARY_SIZE} ${PRIMARY_TEXT}`}
-        >
-          ↺
-        </button>
-        <button
-          type="button"
-          aria-label="시계 회전"
-          onPointerDown={handleRotateCw}
-          className={`${BUTTON_BASE} ${PRIMARY_SIZE} ${PRIMARY_TEXT}`}
+          aria-label="회전"
+          onPointerDown={handleRotate}
+          className={`${BUTTON_BASE} ${PRIMARY_BUTTON} ${PRIMARY_TEXT}`}
         >
           ↻
         </button>
@@ -245,7 +233,7 @@ export function TouchControls({
           type="button"
           aria-label="하드드롭"
           onPointerDown={handleHardDrop}
-          className={`${BUTTON_BASE} ${PRIMARY_SIZE} ${SECONDARY_TEXT} border-cyan-300/40 bg-cyan-300/10 text-cyan-100`}
+          className={`${BUTTON_BASE} ${PRIMARY_BUTTON} ${SECONDARY_TEXT} border-cyan-300/40 bg-cyan-300/10 text-cyan-100`}
         >
           DROP
         </button>
