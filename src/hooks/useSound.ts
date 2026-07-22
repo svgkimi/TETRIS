@@ -235,6 +235,20 @@ export function useSound(): UseSoundResult {
     }
     if (ctxRef.current.state === "suspended") {
       void ctxRef.current.resume();
+      // 모바일 사파리/일부 안드로이드 브라우저는 resume()이 아직 완료되지 않은 시점에
+      // (Promise가 resolve되기 전에) 예약된 오실레이터를 조용히 버려버리는 경우가 있다.
+      // 무음에 가까운(gain=0) 아주 짧은 버퍼 소스를 지금 이 동기 호출 스택 안에서 바로
+      // start()시키면 대부분의 모바일 브라우저가 이를 확실한 "오디오 언락 제스처"로
+      // 인정해, 뒤이어 예약되는 실제 효과음이 씹히지 않고 들리게 된다.
+      try {
+        const primerBuffer = ctxRef.current.createBuffer(1, 1, ctxRef.current.sampleRate);
+        const primer = ctxRef.current.createBufferSource();
+        primer.buffer = primerBuffer;
+        primer.connect(ctxRef.current.destination);
+        primer.start(0);
+      } catch {
+        // 언락 실패는 치명적이지 않다 - 이어지는 resume().then() 경로가 여전히 백업으로 동작한다
+      }
     }
     return ctxRef.current;
   }, []);
@@ -244,14 +258,15 @@ export function useSound(): UseSoundResult {
   // 묶어둔다. 우리 사운드 재생 호출은 대부분 useEffect/타이머 안에서 이루어지므로,
   // 페이지 전체에 대한 최초 사용자 입력을 한 번 감지해 그 안에서 직접 AudioContext를
   // 생성/resume 시켜 소리가 전혀 들리지 않는 문제를 방지한다.
-  // click/touchend/keydown만 사용한다: pointerdown은 Safari(WebKit)가 오디오 언락을 위한
-  // "사용자 제스처"로 항상 인정해주지는 않아, 크로미움에서는 통하고 Safari에서는 계속
-  // suspended로 묶이는(=소리가 안 들리는) 문제가 있었다.
+  // click/touchend/keydown에 더해 touchstart/pointerdown도 등록한다: 모바일 터치 컨트롤
+  // 버튼들은 pointerdown에서 preventDefault()를 호출하는데, 이게 뒤따르는 합성 click 이벤트
+  // 발생 자체를 막아버리는 모바일 브라우저가 있어(그러면 window의 click 리스너가 전혀
+  // 발화하지 않는다), 터치 이벤트 자체에도 별도로 언락 리스너를 걸어 그 경로를 막는다.
   useEffect(() => {
     const unlockAudio = () => {
       ensureContext();
     };
-    const unlockEvents: (keyof WindowEventMap)[] = ["click", "touchend", "keydown"];
+    const unlockEvents: (keyof WindowEventMap)[] = ["click", "touchend", "touchstart", "pointerdown", "keydown"];
     unlockEvents.forEach((eventName) => window.addEventListener(eventName, unlockAudio, { once: true }));
     return () => {
       unlockEvents.forEach((eventName) => window.removeEventListener(eventName, unlockAudio));

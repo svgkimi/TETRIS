@@ -225,16 +225,18 @@ function GameBoardComponent({
       ctx.fillStyle = "#0b0b12";
       ctx.fillRect(-20, -20, BOARD_PIXEL_WIDTH + 40, BOARD_PIXEL_HEIGHT + 40);
 
-      // 그리드 라인
+      // 그리드 라인: 바깥쪽 테두리(x=0, x=BOARD_WIDTH / y=0, y=BOARD_VISIBLE_HEIGHT)는 그리지 않는다.
+      // 캔버스 엘리먼트 자체에 이미 CSS border가 있어서, 안쪽 그리드선까지 같은 위치에 겹쳐 그리면
+      // 테두리가 두 겹으로 보여 시각적으로 헷갈린다(특히 좌우 변에서 두드러짐).
       ctx.strokeStyle = "rgba(255,255,255,0.05)";
       ctx.lineWidth = 1;
-      for (let x = 0; x <= BOARD_WIDTH; x++) {
+      for (let x = 1; x < BOARD_WIDTH; x++) {
         ctx.beginPath();
         ctx.moveTo(x * CELL_SIZE, 0);
         ctx.lineTo(x * CELL_SIZE, BOARD_PIXEL_HEIGHT);
         ctx.stroke();
       }
-      for (let y = 0; y <= BOARD_VISIBLE_HEIGHT; y++) {
+      for (let y = 1; y < BOARD_VISIBLE_HEIGHT; y++) {
         ctx.beginPath();
         ctx.moveTo(0, y * CELL_SIZE);
         ctx.lineTo(BOARD_PIXEL_WIDTH, y * CELL_SIZE);

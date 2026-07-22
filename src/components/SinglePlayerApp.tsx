@@ -200,48 +200,46 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
            스크롤이 필요 없고, 보드 하단이 터치 컨트롤에 가려지는 일도 구조적으로 발생하지 않는다. ---- */}
       {phase !== "title" && isMobile && (
         <div className="flex h-full w-full flex-col items-center gap-2 px-3 pt-[max(0.5rem,env(safe-area-inset-top))]">
-          {/* 컴팩트 HUD: 스케일 트릭 없이 실제 크기로 조립해 잘림 없이 표시한다 */}
-          <div className="flex w-full max-w-[300px] shrink-0 items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-sm">
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-semibold tracking-widest text-white/40">HOLD</span>
-              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-black/30">
+          {/* 컴팩트 HUD: 점수를 가장 크게 중앙에 두고(주인공), HOLD/일시정지는 위 줄 양끝에
+              작게, LEVEL·LINES·NEXT는 아래 줄에 보조 정보로 배치한다 */}
+          <div className="flex w-full max-w-[300px] shrink-0 flex-col gap-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-sm">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-black/30">
                 <MiniPiece type={state.hold.type} cellSize={8} dimmed={!state.hold.canHold} />
               </div>
-            </div>
-
-            <div className="flex flex-col items-center leading-tight">
-              <span className="font-mono text-base font-bold text-white">
+              <span className="flex-1 text-center font-mono text-3xl font-black tracking-tight text-white drop-shadow-[0_0_14px_rgba(34,211,238,0.35)]">
                 {state.score.toLocaleString("en-US")}
               </span>
+              <button
+                type="button"
+                aria-label={state.status === "paused" ? "재개" : "일시정지"}
+                onClick={state.status === "paused" ? resume : pause}
+                disabled={state.status !== "playing" && state.status !== "paused"}
+                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/10 bg-black/30 text-base text-white/80 disabled:opacity-30"
+              >
+                {state.status === "paused" ? "▶" : "❚❚"}
+              </button>
+            </div>
+
+            <div className="flex items-center justify-between gap-2">
               <span className="text-[9px] font-semibold tracking-widest text-white/40">
                 LV.{state.level} · LINES {state.totalLinesCleared}
               </span>
-            </div>
-
-            <div className="flex items-center gap-1.5">
-              <span className="text-[9px] font-semibold tracking-widest text-white/40">NEXT</span>
               <div className="flex items-center gap-1">
-                {nextPreview.slice(0, 3).map((type, index) => (
-                  <div
-                    key={index}
-                    className="flex h-9 w-9 items-center justify-center rounded-md bg-black/30"
-                    style={{ opacity: 1 - index * 0.25 }}
-                  >
-                    <MiniPiece type={type} cellSize={8} />
-                  </div>
-                ))}
+                <span className="text-[9px] font-semibold tracking-widest text-white/40">NEXT</span>
+                <div className="flex items-center gap-1">
+                  {nextPreview.slice(0, 3).map((type, index) => (
+                    <div
+                      key={index}
+                      className="flex h-6 w-6 items-center justify-center rounded-md bg-black/30"
+                      style={{ opacity: 1 - index * 0.25 }}
+                    >
+                      <MiniPiece type={type} cellSize={5} />
+                    </div>
+                  ))}
+                </div>
               </div>
             </div>
-
-            <button
-              type="button"
-              aria-label={state.status === "paused" ? "재개" : "일시정지"}
-              onClick={state.status === "paused" ? resume : pause}
-              disabled={state.status !== "playing" && state.status !== "paused"}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/10 bg-black/30 text-base text-white/80 disabled:opacity-30"
-            >
-              {state.status === "paused" ? "▶" : "❚❚"}
-            </button>
           </div>
 
           {/* 보드 영역: flex-1 + min-h-0으로 위/아래 영역이 차지하고 남은 높이를 정확히 채운다 */}
