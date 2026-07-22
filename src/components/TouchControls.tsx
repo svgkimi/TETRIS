@@ -115,11 +115,11 @@ const ACCENT_DROP =
  * 1행에 버튼이 하나뿐인 자리는 보이지 않는 스페이서로 같은 정사각형 크기만 차지해,
  * 2행 버튼들과 폭이 어긋나지 않으면서도 모든 버튼이 동일한 크기를 유지한다.
  */
-const SQUARE_BUTTON = "flex-1 aspect-square min-w-0";
-/** 아이콘 버튼(이동/소프트드롭/회전)의 폰트 크기 */
-const SQUARE_TEXT = "text-[clamp(1rem,6vw,1.6rem)]";
+const SQUARE_BUTTON = "flex-1 aspect-square max-w-11 min-w-0";
+/** 아이콘 버튼(이동/소프트드롭/회전)의 폰트 크기 - 버튼 자체가 max-w-11(44px)로 고정 상한이라 텍스트도 고정값이면 충분하다 */
+const SQUARE_TEXT = "text-lg";
 /** HOLD/DROP처럼 정사각형 안에 짧은 텍스트가 들어가는 경우의 폰트 크기 */
-const SQUARE_LABEL_TEXT = "text-[clamp(0.55rem,3vw,0.75rem)]";
+const SQUARE_LABEL_TEXT = "text-[10px]";
 
 /** 모바일 전용 가상 게임패드. 데스크톱에서는 렌더링되지 않는다(호출부에서 useIsMobile로 조건부 렌더) */
 export function TouchControls({ dispatch, triggerHardDrop, status, sounds }: TouchControlsProps) {
@@ -181,7 +181,7 @@ export function TouchControls({ dispatch, triggerHardDrop, status, sounds }: Tou
     >
       {/* 좌측 열: 1행 = HOLD + 빈 스페이서, 2행 = 좌/우 이동 (모두 같은 정사각형 크기) */}
       <div className="flex flex-1 flex-col gap-1.5">
-        <div className="flex gap-1.5">
+        <div className="flex justify-center gap-1.5">
           <button
             type="button"
             aria-label="홀드"
@@ -190,9 +190,9 @@ export function TouchControls({ dispatch, triggerHardDrop, status, sounds }: Tou
           >
             HOLD
           </button>
-          <div className="flex-1 aspect-square" aria-hidden="true" />
+          <div className="flex-1 aspect-square max-w-11" aria-hidden="true" />
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex justify-center gap-1.5">
           <button
             type="button"
             aria-label="왼쪽 이동"
@@ -214,7 +214,7 @@ export function TouchControls({ dispatch, triggerHardDrop, status, sounds }: Tou
 
       {/* 우측 열: 1행 = 소프트드롭(꾹 눌러 내리기) + 빈 스페이서, 2행 = 회전 + 하드드롭 */}
       <div className="flex flex-1 flex-col gap-1.5">
-        <div className="flex gap-1.5">
+        <div className="flex justify-center gap-1.5">
           <button
             type="button"
             aria-label="소프트드롭"
@@ -223,9 +223,9 @@ export function TouchControls({ dispatch, triggerHardDrop, status, sounds }: Tou
           >
             ▼
           </button>
-          <div className="flex-1 aspect-square" aria-hidden="true" />
+          <div className="flex-1 aspect-square max-w-11" aria-hidden="true" />
         </div>
-        <div className="flex gap-1.5">
+        <div className="flex justify-center gap-1.5">
           <button
             type="button"
             aria-label="회전"
