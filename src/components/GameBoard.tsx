@@ -347,12 +347,15 @@ function GameBoardComponent({
   }, []);
 
   return (
-    <div className={responsive ? "relative w-full" : "relative"}>
+    <div className={responsive ? "relative flex h-full w-full items-center justify-center" : "relative"}>
       <canvas
         ref={canvasRef}
         style={
           responsive
-            ? { width: "100%", height: "auto", aspectRatio: `${BOARD_WIDTH} / ${BOARD_VISIBLE_HEIGHT}` }
+            // 부모(모바일 보드 영역)가 남긴 실제 가용 폭/높이 중 더 빠듯한 쪽에 맞춰
+            // 보드가 축소된다(object-fit: contain) - 가로만 보고 줄이면 세로가 화면보다
+            // 커서 하단 몇 줄이 하단 터치 컨트롤 영역 아래로 가려지던 문제를 근본적으로 막는다.
+            ? { width: "100%", height: "100%", objectFit: "contain" }
             : { width: BOARD_PIXEL_WIDTH, height: BOARD_PIXEL_HEIGHT }
         }
         className="block rounded-xl border border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.5)]"

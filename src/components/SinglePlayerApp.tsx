@@ -124,7 +124,7 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
     <div
       className={
         isMobile && phase !== "title"
-          ? "flex h-full w-full flex-col items-center justify-start overflow-y-auto bg-[#0a0a0f] p-4 pb-32"
+          ? "flex h-dvh w-full flex-col items-stretch overflow-hidden bg-[#0a0a0f]"
           : "flex h-full w-full items-center justify-center overflow-hidden bg-[#0a0a0f] p-4"
       }
     >
@@ -195,11 +195,13 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
         </div>
       )}
 
-      {/* ---- 모바일 레이아웃: 상단에 컴팩트 HUD 바(HOLD/SCORE/NEXT), 중앙에 반응형 보드, 하단에 터치 컨트롤 ---- */}
+      {/* ---- 모바일 레이아웃: 상단에 컴팩트 HUD 바(HOLD/SCORE/NEXT/일시정지), 중앙에 남는 높이를 꽉 채우는
+           반응형 보드, 하단에 터치 컨트롤 - 세 영역이 뷰포트 높이(h-dvh)를 정확히 나눠 가지므로
+           스크롤이 필요 없고, 보드 하단이 터치 컨트롤에 가려지는 일도 구조적으로 발생하지 않는다. ---- */}
       {phase !== "title" && isMobile && (
-        <div className="flex w-full flex-col items-center gap-3 px-3 pt-1">
+        <div className="flex h-full w-full flex-col items-center gap-2 px-3 pt-[max(0.5rem,env(safe-area-inset-top))]">
           {/* 컴팩트 HUD: 스케일 트릭 없이 실제 크기로 조립해 잘림 없이 표시한다 */}
-          <div className="flex w-full max-w-[300px] items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-sm">
+          <div className="flex w-full max-w-[300px] shrink-0 items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-sm">
             <div className="flex items-center gap-1.5">
               <span className="text-[9px] font-semibold tracking-widest text-white/40">HOLD</span>
               <div className="flex h-9 w-9 items-center justify-center rounded-md bg-black/30">
@@ -230,10 +232,21 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
                 ))}
               </div>
             </div>
+
+            <button
+              type="button"
+              aria-label={state.status === "paused" ? "재개" : "일시정지"}
+              onClick={state.status === "paused" ? resume : pause}
+              disabled={state.status !== "playing" && state.status !== "paused"}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-white/10 bg-black/30 text-base text-white/80 disabled:opacity-30"
+            >
+              {state.status === "paused" ? "▶" : "❚❚"}
+            </button>
           </div>
 
-          <div className="flex w-full justify-center">
-            <div className="relative w-full" style={{ maxWidth: 300 }}>
+          {/* 보드 영역: flex-1 + min-h-0으로 위/아래 영역이 차지하고 남은 높이를 정확히 채운다 */}
+          <div className="flex min-h-0 w-full flex-1 items-center justify-center">
+            <div className="relative h-full w-full max-w-[300px]">
               <GameBoard
                 board={state.board}
                 active={state.active}
@@ -261,13 +274,14 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
             </div>
           </div>
 
-          <TouchControls
-            dispatch={dispatch}
-            triggerHardDrop={triggerHardDrop}
-            status={state.status}
-            onPause={pause}
-            sounds={sounds}
-          />
+          <div className="w-full shrink-0">
+            <TouchControls
+              dispatch={dispatch}
+              triggerHardDrop={triggerHardDrop}
+              status={state.status}
+              sounds={sounds}
+            />
+          </div>
         </div>
       )}
     </div>

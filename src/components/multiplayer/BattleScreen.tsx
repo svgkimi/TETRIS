@@ -69,7 +69,7 @@ export interface BattleScreenProps {
  */
 export function BattleScreen({ matchStart, roomName, network, onLeaveRoom, onExit }: BattleScreenProps) {
   const { enabled: soundEnabled, toggle: toggleSound, sounds, music } = useSound();
-  const { state, ghost, hardDropTrail, start, dispatch, pause, triggerHardDrop } = useGameEngine({ sounds });
+  const { state, ghost, hardDropTrail, start, dispatch, triggerHardDrop } = useGameEngine({ sounds });
   const { shake, popups } = useEffects(state.lastScoreEvent);
   const isMobile = useIsMobile();
 
@@ -389,7 +389,6 @@ export function BattleScreen({ matchStart, roomName, network, onLeaveRoom, onExi
           dispatch={dispatch}
           triggerHardDrop={triggerHardDrop}
           status={state.status}
-          onPause={pause}
           sounds={sounds}
         />
       )}
