@@ -115,8 +115,8 @@ const ACCENT_DROP =
  * 1행에 버튼이 하나뿐인 자리는 보이지 않는 스페이서로 같은 정사각형 크기만 차지해,
  * 2행 버튼들과 폭이 어긋나지 않으면서도 모든 버튼이 동일한 크기를 유지한다.
  */
-const SQUARE_BUTTON = "flex-1 aspect-square max-w-11 min-w-0";
-/** 아이콘 버튼(이동/소프트드롭/회전)의 폰트 크기 - 버튼 자체가 max-w-11(44px)로 고정 상한이라 텍스트도 고정값이면 충분하다 */
+const SQUARE_BUTTON = "flex-1 aspect-square max-w-12 min-w-0";
+/** 아이콘 버튼(이동/소프트드롭/회전)의 폰트 크기 - 버튼 자체가 max-w-12(48px)로 고정 상한이라 텍스트도 고정값이면 충분하다 */
 const SQUARE_TEXT = "text-lg";
 /** HOLD/DROP처럼 정사각형 안에 짧은 텍스트가 들어가는 경우의 폰트 크기 */
 const SQUARE_LABEL_TEXT = "text-[10px]";
