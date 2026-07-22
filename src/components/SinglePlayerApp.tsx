@@ -202,7 +202,7 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
         <div className="flex h-full w-full flex-col items-center gap-2 px-3 pt-[max(0.5rem,env(safe-area-inset-top))]">
           {/* 컴팩트 HUD: 점수를 가장 크게 중앙에 두고(주인공), HOLD/일시정지는 위 줄 양끝에
               작게, LEVEL·LINES·NEXT는 아래 줄에 보조 정보로 배치한다 */}
-          <div className="flex w-full max-w-[300px] shrink-0 flex-col gap-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-sm">
+          <div className="flex w-full max-w-md shrink-0 flex-col gap-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-sm">
             <div className="flex items-center justify-between gap-2">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-black/30">
                 <MiniPiece type={state.hold.type} cellSize={8} dimmed={!state.hold.canHold} />
@@ -242,9 +242,12 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
             </div>
           </div>
 
-          {/* 보드 영역: flex-1 + min-h-0으로 위/아래 영역이 차지하고 남은 높이를 정확히 채운다 */}
+          {/* 보드 영역: flex-1 + min-h-0으로 위/아래 영역이 차지하고 남은 높이를 정확히 채운다.
+              폭 상한을 따로 두지 않는다 - GameBoard가 이 영역의 실제 가로/세로를 측정해
+              10:20 비율을 유지한 채 들어갈 수 있는 최대 크기로 스스로 키운다(너무 작아 보이던
+              문제, 좌우가 비어 보이던 문제 모두 이 정확한 측정 기반 크기 계산으로 해결된다). */}
           <div className="flex min-h-0 w-full flex-1 items-center justify-center">
-            <div className="relative h-full w-full max-w-[300px]">
+            <div className="relative h-full w-full">
               <GameBoard
                 board={state.board}
                 active={state.active}

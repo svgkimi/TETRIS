@@ -14,7 +14,7 @@
  * 화면 흔들림, 글로우 효과를 매 프레임 갱신해도 리플로우 비용이 없다.
  */
 
-import { memo, useEffect, useRef } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
   BOARD_BUFFER_HEIGHT,
   BOARD_VISIBLE_HEIGHT,
@@ -122,6 +122,12 @@ function GameBoardComponent({
   responsive = false,
 }: GameBoardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  // responsive 모드에서 부모가 실제로 내준 가로/세로 공간을 측정해, "object-fit: contain"으로
+  // 캔버스 박스만 크게 두고 내용물은 작게 그려지던 문제(테두리와 실제 그림 사이에 빈 공간이
+  // 생겨 좌우가 비어 보이던 원인)를 없앤다 - 캔버스 엘리먼트의 CSS 크기 자체를 실제 표시될
+  // 크기와 정확히 같게 맞춰서, 테두리가 항상 보이는 그림에 딱 맞게 그려지도록 한다.
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [responsiveSize, setResponsiveSize] = useState<{ width: number; height: number } | null>(null);
 
   // 최신 props를 내부 rAF 루프에서 참조하기 위한 ref (React state로 관리하면 매 프레임 재렌더링 필요)
   const propsRef = useRef({ board, active, ghost, status });
@@ -176,7 +182,40 @@ function GameBoardComponent({
     trailRef.current = { ...hardDropTrail, startedAt: performance.now() };
   }, [hardDropTrail]);
 
-  // ---- 캔버스 해상도 설정 (devicePixelRatio 대응, 마운트 시 1회) ----
+  // ---- responsive 모드: 부모 컨테이너의 실제 가용 폭/높이를 측정해 10:20 비율을 유지한 채
+  // 들어갈 수 있는 최대 크기를 계산한다 (object-fit 없이 캔버스 CSS 크기 자체를 이 값으로 고정) ----
+  useEffect(() => {
+    if (!responsive) {
+      setResponsiveSize(null);
+      return undefined;
+    }
+    const container = containerRef.current;
+    if (!container) return undefined;
+    const aspect = BOARD_WIDTH / BOARD_VISIBLE_HEIGHT;
+
+    const compute = () => {
+      const { width: availW, height: availH } = container.getBoundingClientRect();
+      if (availW <= 0 || availH <= 0) return;
+      let width = availW;
+      let height = width / aspect;
+      if (height > availH) {
+        height = availH;
+        width = height * aspect;
+      }
+      setResponsiveSize({ width: Math.floor(width), height: Math.floor(height) });
+    };
+
+    compute();
+    const observer = new ResizeObserver(compute);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [responsive]);
+
+  // ---- 캔버스 해상도 설정 (devicePixelRatio 대응) ----
+  // 내부 드로잉 좌표계는 항상 BOARD_PIXEL_WIDTH/HEIGHT(고정 논리 해상도)를 그대로 쓰고,
+  // 실제 화면에 보이는 크기는 CSS width/height(위 responsiveSize 또는 고정값)가 결정한다.
+  // 브라우저가 이 고정 해상도 비트맵을 CSS 박스에 맞춰 알아서 스케일해 그려주므로,
+  // 화면 크기가 바뀌어도 이 effect를 다시 돌릴 필요는 없다(마운트 시 1회로 충분).
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
@@ -349,15 +388,21 @@ function GameBoardComponent({
   }, []);
 
   return (
-    <div className={responsive ? "relative flex h-full w-full items-center justify-center" : "relative"}>
+    <div
+      ref={containerRef}
+      className={responsive ? "relative flex h-full w-full items-center justify-center" : "relative"}
+    >
       <canvas
         ref={canvasRef}
         style={
           responsive
-            // 부모(모바일 보드 영역)가 남긴 실제 가용 폭/높이 중 더 빠듯한 쪽에 맞춰
-            // 보드가 축소된다(object-fit: contain) - 가로만 보고 줄이면 세로가 화면보다
-            // 커서 하단 몇 줄이 하단 터치 컨트롤 영역 아래로 가려지던 문제를 근본적으로 막는다.
-            ? { width: "100%", height: "100%", objectFit: "contain" }
+            // 측정된 실제 크기를 캔버스 CSS 크기 자체로 그대로 사용한다 - object-fit이 아니므로
+            // 테두리(border)가 항상 실제로 보이는 그림 크기에 딱 맞게 그려져, 좌우에 불필요한
+            // 빈 공간이 생기지 않는다. 최초 측정 전(responsiveSize===null)에는 100% 폭 기준으로
+            // 비율을 유지한 채 렌더링해 크기가 순간적으로 0이 되는 깜빡임을 막는다.
+            ? responsiveSize
+              ? { width: responsiveSize.width, height: responsiveSize.height }
+              : { width: "100%", height: "auto", aspectRatio: `${BOARD_WIDTH} / ${BOARD_VISIBLE_HEIGHT}` }
             : { width: BOARD_PIXEL_WIDTH, height: BOARD_PIXEL_HEIGHT }
         }
         className="block rounded-xl border border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.5)]"

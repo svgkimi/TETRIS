@@ -110,17 +110,15 @@ const ACCENT_DROP =
   "border-rose-300/60 bg-gradient-to-b from-rose-400/35 to-rose-600/15 text-rose-100 shadow-[0_2px_0_0_rgba(190,18,60,0.6),0_0_18px_rgba(251,113,133,0.45)] active:bg-rose-400/45";
 
 /**
- * 버튼 크기를 고정 px/vw 계산식이 아니라 CSS Grid 비율로 결정한다: 각 열은
- * grid-cols-2이고, 1행(HOLD/소프트드롭)은 두 칸을 모두 차지하는 넓은 버튼,
- * 2행은 칸마다 정사각형 버튼 - 화면 폭에 맞춰 전부 자동으로 늘고 줄어든다.
+ * 모든 버튼을 같은 크기(정사각형, flex-1)로 통일한다 - 이전에 HOLD/소프트드롭만
+ * 2칸을 합친 넓은 버튼이라 나머지와 크기가 안 맞는다는 피드백을 반영했다.
+ * 1행에 버튼이 하나뿐인 자리는 보이지 않는 스페이서로 같은 정사각형 크기만 차지해,
+ * 2행 버튼들과 폭이 어긋나지 않으면서도 모든 버튼이 동일한 크기를 유지한다.
  */
-const WIDE_BUTTON = "col-span-2 aspect-[2/1] min-w-0";
-const SQUARE_BUTTON = "aspect-square min-w-0";
-/** 넓은 버튼(HOLD/소프트드롭) 라벨 폰트 크기 */
-const WIDE_TEXT = "text-[clamp(0.65rem,3.4vw,0.85rem)]";
-/** 정사각 아이콘 버튼(이동/회전)의 폰트 크기 */
+const SQUARE_BUTTON = "flex-1 aspect-square min-w-0";
+/** 아이콘 버튼(이동/소프트드롭/회전)의 폰트 크기 */
 const SQUARE_TEXT = "text-[clamp(1rem,6vw,1.6rem)]";
-/** DROP처럼 정사각형 안에 짧은 텍스트가 들어가는 경우의 폰트 크기 */
+/** HOLD/DROP처럼 정사각형 안에 짧은 텍스트가 들어가는 경우의 폰트 크기 */
 const SQUARE_LABEL_TEXT = "text-[clamp(0.55rem,3vw,0.75rem)]";
 
 /** 모바일 전용 가상 게임패드. 데스크톱에서는 렌더링되지 않는다(호출부에서 useIsMobile로 조건부 렌더) */
@@ -181,60 +179,70 @@ export function TouchControls({ dispatch, triggerHardDrop, status, sounds }: Tou
       style={{ touchAction: "none" }}
       data-testid="touch-controls"
     >
-      {/* 좌측 열: 1행 = HOLD(넓게), 2행 = 좌/우 이동 */}
-      <div className="grid flex-1 grid-cols-2 gap-1.5">
-        <button
-          type="button"
-          aria-label="홀드"
-          onPointerDown={handleHold}
-          className={`${BUTTON_BASE} ${ACCENT_HOLD} ${WIDE_BUTTON} ${WIDE_TEXT}`}
-        >
-          HOLD
-        </button>
-        <button
-          type="button"
-          aria-label="왼쪽 이동"
-          className={`${BUTTON_BASE} ${ACCENT_MOVE} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
-          {...leftRepeat}
-        >
-          ◀
-        </button>
-        <button
-          type="button"
-          aria-label="오른쪽 이동"
-          className={`${BUTTON_BASE} ${ACCENT_MOVE} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
-          {...rightRepeat}
-        >
-          ▶
-        </button>
+      {/* 좌측 열: 1행 = HOLD + 빈 스페이서, 2행 = 좌/우 이동 (모두 같은 정사각형 크기) */}
+      <div className="flex flex-1 flex-col gap-1.5">
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            aria-label="홀드"
+            onPointerDown={handleHold}
+            className={`${BUTTON_BASE} ${ACCENT_HOLD} ${SQUARE_BUTTON} ${SQUARE_LABEL_TEXT}`}
+          >
+            HOLD
+          </button>
+          <div className="flex-1 aspect-square" aria-hidden="true" />
+        </div>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            aria-label="왼쪽 이동"
+            className={`${BUTTON_BASE} ${ACCENT_MOVE} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
+            {...leftRepeat}
+          >
+            ◀
+          </button>
+          <button
+            type="button"
+            aria-label="오른쪽 이동"
+            className={`${BUTTON_BASE} ${ACCENT_MOVE} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
+            {...rightRepeat}
+          >
+            ▶
+          </button>
+        </div>
       </div>
 
-      {/* 우측 열: 1행 = 소프트드롭(꾹 눌러 내리기, 넓게), 2행 = 회전 + 하드드롭 */}
-      <div className="grid flex-1 grid-cols-2 gap-1.5">
-        <button
-          type="button"
-          aria-label="소프트드롭"
-          className={`${BUTTON_BASE} ${ACCENT_SOFTDROP} ${WIDE_BUTTON} ${SQUARE_TEXT}`}
-          {...softDropRepeat}
-        >
-          ▼
-        </button>
-        <button
-          type="button"
-          aria-label="회전"
-          onPointerDown={handleRotate}
-          className={`${BUTTON_BASE} ${ACCENT_ROTATE} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
-        >
-          ↻
-        </button>
-        <button
-          type="button"
-          aria-label="하드드롭"
-          onPointerDown={handleHardDrop}
-          className={`${BUTTON_BASE} ${ACCENT_DROP} ${SQUARE_BUTTON} ${SQUARE_LABEL_TEXT}`}
-        >
-          DROP
-        </button>
+      {/* 우측 열: 1행 = 소프트드롭(꾹 눌러 내리기) + 빈 스페이서, 2행 = 회전 + 하드드롭 */}
+      <div className="flex flex-1 flex-col gap-1.5">
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            aria-label="소프트드롭"
+            className={`${BUTTON_BASE} ${ACCENT_SOFTDROP} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
+            {...softDropRepeat}
+          >
+            ▼
+          </button>
+          <div className="flex-1 aspect-square" aria-hidden="true" />
+        </div>
+        <div className="flex gap-1.5">
+          <button
+            type="button"
+            aria-label="회전"
+            onPointerDown={handleRotate}
+            className={`${BUTTON_BASE} ${ACCENT_ROTATE} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
+          >
+            ↻
+          </button>
+          <button
+            type="button"
+            aria-label="하드드롭"
+            onPointerDown={handleHardDrop}
+            className={`${BUTTON_BASE} ${ACCENT_DROP} ${SQUARE_BUTTON} ${SQUARE_LABEL_TEXT}`}
+          >
+            DROP
+          </button>
+        </div>
       </div>
     </div>
   );
