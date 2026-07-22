@@ -57,6 +57,8 @@ export interface GameBoardProps {
   readonly lastScoreEvent: ScoreEvent | null;
   readonly hardDropTrail: HardDropTrailInfo | null;
   readonly shake: ShakeTrigger | null;
+  /** true면 캔버스를 부모 너비에 맞춰 유동적으로 축소한다 (모바일 전용, 데스크톱 레이아웃은 영향 없음) */
+  readonly responsive?: boolean;
 }
 
 /** 라인 클리어 카테고리별 플래시/파티클 색상 */
@@ -109,7 +111,16 @@ function roundedRectPath(ctx: CanvasRenderingContext2D, x: number, y: number, w:
   ctx.closePath();
 }
 
-function GameBoardComponent({ board, active, ghost, status, lastScoreEvent, hardDropTrail, shake }: GameBoardProps) {
+function GameBoardComponent({
+  board,
+  active,
+  ghost,
+  status,
+  lastScoreEvent,
+  hardDropTrail,
+  shake,
+  responsive = false,
+}: GameBoardProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   // 최신 props를 내부 rAF 루프에서 참조하기 위한 ref (React state로 관리하면 매 프레임 재렌더링 필요)
@@ -336,11 +347,15 @@ function GameBoardComponent({ board, active, ghost, status, lastScoreEvent, hard
   }, []);
 
   return (
-    <div className="relative">
+    <div className={responsive ? "relative w-full" : "relative"}>
       <canvas
         ref={canvasRef}
-        style={{ width: BOARD_PIXEL_WIDTH, height: BOARD_PIXEL_HEIGHT }}
-        className="rounded-xl border border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.5)]"
+        style={
+          responsive
+            ? { width: "100%", height: "auto", aspectRatio: `${BOARD_WIDTH} / ${BOARD_VISIBLE_HEIGHT}` }
+            : { width: BOARD_PIXEL_WIDTH, height: BOARD_PIXEL_HEIGHT }
+        }
+        className="block rounded-xl border border-white/10 shadow-[0_0_40px_rgba(0,0,0,0.5)]"
       />
       {status === "paused" && (
         // PRD 3.1: 일시정지 중 필드는 블러 처리되어 노출되지 않는다. 실제 텍스트/버튼은

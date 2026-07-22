@@ -20,6 +20,7 @@ import { useHighScore } from "../hooks/useHighScore";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { GameBoard } from "./GameBoard";
 import { HoldPanel } from "./HoldPanel";
+import { MiniPiece } from "./MiniPiece";
 import { NextQueue } from "./NextQueue";
 import { ScoreBoard } from "./ScoreBoard";
 import { SoundControl } from "./SoundControl";
@@ -121,9 +122,11 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
 
   return (
     <div
-      className={`flex h-full w-full items-center justify-center overflow-hidden bg-[#0a0a0f] p-4 ${
-        isMobile && phase !== "title" ? "flex-col justify-start overflow-y-auto pb-32" : ""
-      }`}
+      className={
+        isMobile && phase !== "title"
+          ? "flex h-full w-full flex-col items-center justify-start overflow-y-auto bg-[#0a0a0f] p-4 pb-32"
+          : "flex h-full w-full items-center justify-center overflow-hidden bg-[#0a0a0f] p-4"
+      }
     >
       {phase === "title" && (
         <TitleScreen
@@ -192,29 +195,45 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
         </div>
       )}
 
-      {/* ---- 모바일 레이아웃: 상단에 컴팩트 HOLD/SCORE/NEXT, 중앙에 축소된 보드, 하단에 터치 컨트롤 ---- */}
+      {/* ---- 모바일 레이아웃: 상단에 컴팩트 HUD 바(HOLD/SCORE/NEXT), 중앙에 반응형 보드, 하단에 터치 컨트롤 ---- */}
       {phase !== "title" && isMobile && (
-        <div className="flex w-full flex-col items-center gap-2 pt-1">
-          <div className="flex h-[86px] w-full max-w-md items-start justify-between gap-1 overflow-hidden text-[10px]">
-            <div className="w-1/4 scale-[0.55] origin-top-left">
-              <HoldPanel hold={state.hold} />
+        <div className="flex w-full flex-col items-center gap-3 px-3 pt-1">
+          {/* 컴팩트 HUD: 스케일 트릭 없이 실제 크기로 조립해 잘림 없이 표시한다 */}
+          <div className="flex w-full max-w-[300px] items-center justify-between gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-sm">
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-semibold tracking-widest text-white/40">HOLD</span>
+              <div className="flex h-9 w-9 items-center justify-center rounded-md bg-black/30">
+                <MiniPiece type={state.hold.type} cellSize={8} dimmed={!state.hold.canHold} />
+              </div>
             </div>
-            <div className="w-1/2 scale-[0.55] origin-top">
-              <ScoreBoard
-                score={state.score}
-                level={state.level}
-                totalLinesCleared={state.totalLinesCleared}
-                combo={state.combo}
-                backToBack={state.backToBack}
-              />
+
+            <div className="flex flex-col items-center leading-tight">
+              <span className="font-mono text-base font-bold text-white">
+                {state.score.toLocaleString("en-US")}
+              </span>
+              <span className="text-[9px] font-semibold tracking-widest text-white/40">
+                LV.{state.level} · LINES {state.totalLinesCleared}
+              </span>
             </div>
-            <div className="w-1/4 scale-[0.55] origin-top-right">
-              <NextQueue upcoming={nextPreview} />
+
+            <div className="flex items-center gap-1.5">
+              <span className="text-[9px] font-semibold tracking-widest text-white/40">NEXT</span>
+              <div className="flex items-center gap-1">
+                {nextPreview.slice(0, 3).map((type, index) => (
+                  <div
+                    key={index}
+                    className="flex h-9 w-9 items-center justify-center rounded-md bg-black/30"
+                    style={{ opacity: 1 - index * 0.25 }}
+                  >
+                    <MiniPiece type={type} cellSize={8} />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 
-          <div className="flex w-full justify-center overflow-x-auto">
-            <div className="relative">
+          <div className="flex w-full justify-center">
+            <div className="relative w-full" style={{ maxWidth: 300 }}>
               <GameBoard
                 board={state.board}
                 active={state.active}
@@ -223,6 +242,7 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
                 lastScoreEvent={state.lastScoreEvent}
                 hardDropTrail={hardDropTrail}
                 shake={shake}
+                responsive
               />
               <EffectPopups popups={popups} />
               {phase === "countdown" && countdownValue !== null && <CountdownOverlay value={countdownValue} />}
@@ -246,7 +266,6 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
             triggerHardDrop={triggerHardDrop}
             status={state.status}
             onPause={pause}
-            onResume={resume}
             sounds={sounds}
           />
         </div>

@@ -32,7 +32,6 @@ export interface TouchControlsProps {
   /** 현재 게임 상태 (paused 여부로 일시정지 버튼 라벨/동작 결정) */
   readonly status: GameStatus;
   readonly onPause: () => void;
-  readonly onResume: () => void;
   /** 버튼 탭에 맞춰 재생할 효과음 (없으면 무음) */
   readonly sounds?: SoundEffects;
 }
@@ -82,13 +81,23 @@ function useHoldRepeat(fire: (isFirst: boolean) => void) {
 const BUTTON_BASE =
   "flex select-none items-center justify-center rounded-2xl border border-white/10 bg-white/5 font-bold text-white/80 shadow-[0_0_12px_rgba(0,0,0,0.4)] backdrop-blur-sm active:scale-95 active:bg-white/15 transition";
 
+/**
+ * 주요 액션(이동/회전/드롭) 버튼 크기. 뷰포트 폭에 비례해 32px~56px 사이로 스케일되어,
+ * 8개 버튼을 한 줄에 배치해도 어떤 폭의 모바일 화면에서도 화면 밖으로 잘리지 않는다.
+ */
+const PRIMARY_SIZE = "h-[clamp(2rem,11vw,3.5rem)] w-[clamp(2rem,11vw,3.5rem)]";
+/** 보조 액션(홀드/일시정지) 버튼 크기. 주요 버튼보다 한 단계 작게, 같은 방식으로 스케일된다. */
+const SECONDARY_SIZE = "h-[clamp(1.75rem,9vw,2.75rem)] w-[clamp(1.75rem,9vw,2.75rem)]";
+/** 버튼 안 아이콘/텍스트 크기도 버튼 크기에 맞춰 함께 스케일된다 */
+const PRIMARY_TEXT = "text-[clamp(1rem,5vw,1.5rem)]";
+const SECONDARY_TEXT = "text-[clamp(0.55rem,2.6vw,0.7rem)]";
+
 /** 모바일 전용 가상 게임패드. 데스크톱에서는 렌더링되지 않는다(호출부에서 useIsMobile로 조건부 렌더) */
 export function TouchControls({
   dispatch,
   triggerHardDrop,
   status,
   onPause,
-  onResume,
   sounds,
 }: TouchControlsProps) {
   const dispatchRepeatable = useCallback(
@@ -146,27 +155,32 @@ export function TouchControls({
     [dispatch, sounds],
   );
 
-  const handlePauseToggle = useCallback(
+  // 이 컴포넌트는 status가 "playing"일 때만 렌더링되므로 (아래 early return 참고),
+  // 여기서는 항상 일시정지로만 동작한다 (재개는 PauseOverlay에서 처리).
+  const handlePause = useCallback(
     (event: React.PointerEvent) => {
       event.preventDefault();
-      if (status === "playing") onPause();
-      else if (status === "paused") onResume();
+      onPause();
     },
-    [status, onPause, onResume],
+    [onPause],
   );
+
+  // 일시정지/게임오버 화면에서는 그 위에 뜨는 오버레이(PauseOverlay/GameOverScreen)와
+  // 시각적으로 겹치지 않도록, 실제로 플레이 중일 때만 컨트롤을 노출한다.
+  if (status !== "playing") return null;
 
   return (
     <div
-      className="fixed inset-x-0 bottom-0 z-40 flex touch-none select-none items-end justify-between gap-2 px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
+      className="fixed inset-x-0 bottom-0 z-40 mx-auto flex w-full max-w-md touch-none select-none items-end justify-between gap-1 px-2 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-2"
       style={{ touchAction: "none" }}
       data-testid="touch-controls"
     >
       {/* 좌측: 이동(좌/우) + 소프트드롭 */}
-      <div className="flex items-center gap-2">
+      <div className="flex items-center gap-1.5">
         <button
           type="button"
           aria-label="왼쪽 이동"
-          className={`${BUTTON_BASE} h-14 w-14 text-2xl`}
+          className={`${BUTTON_BASE} ${PRIMARY_SIZE} ${PRIMARY_TEXT}`}
           {...leftRepeat}
         >
           ◀
@@ -174,7 +188,7 @@ export function TouchControls({
         <button
           type="button"
           aria-label="오른쪽 이동"
-          className={`${BUTTON_BASE} h-14 w-14 text-2xl`}
+          className={`${BUTTON_BASE} ${PRIMARY_SIZE} ${PRIMARY_TEXT}`}
           {...rightRepeat}
         >
           ▶
@@ -182,40 +196,40 @@ export function TouchControls({
         <button
           type="button"
           aria-label="소프트드롭"
-          className={`${BUTTON_BASE} h-14 w-14 text-2xl`}
+          className={`${BUTTON_BASE} ${PRIMARY_SIZE} ${PRIMARY_TEXT}`}
           {...softDropRepeat}
         >
           ▼
         </button>
       </div>
 
-      {/* 중앙: 홀드 + 일시정지 (보조 액션) */}
-      <div className="flex items-center gap-2">
+      {/* 중앙: 홀드 + 일시정지 (보조 액션 - 크기를 한 단계 작게 통일) */}
+      <div className="flex items-center gap-1.5">
         <button
           type="button"
           aria-label="홀드"
           onPointerDown={handleHold}
-          className={`${BUTTON_BASE} h-12 w-12 text-xs`}
+          className={`${BUTTON_BASE} ${SECONDARY_SIZE} ${SECONDARY_TEXT}`}
         >
           HOLD
         </button>
         <button
           type="button"
-          aria-label={status === "paused" ? "재개" : "일시정지"}
-          onPointerDown={handlePauseToggle}
-          className={`${BUTTON_BASE} h-12 w-12 text-lg`}
+          aria-label="일시정지"
+          onPointerDown={handlePause}
+          className={`${BUTTON_BASE} ${SECONDARY_SIZE} ${PRIMARY_TEXT}`}
         >
-          {status === "paused" ? "▶" : "❚❚"}
+          ❚❚
         </button>
       </div>
 
-      {/* 우측: 회전(반시계/시계) + 하드드롭 */}
-      <div className="flex items-center gap-2">
+      {/* 우측: 회전(반시계/시계) + 하드드롭 (드롭은 색상으로 강조, 크기는 통일) */}
+      <div className="flex items-center gap-1.5">
         <button
           type="button"
           aria-label="반시계 회전"
           onPointerDown={handleRotateCcw}
-          className={`${BUTTON_BASE} h-14 w-14 text-xl`}
+          className={`${BUTTON_BASE} ${PRIMARY_SIZE} ${PRIMARY_TEXT}`}
         >
           ↺
         </button>
@@ -223,7 +237,7 @@ export function TouchControls({
           type="button"
           aria-label="시계 회전"
           onPointerDown={handleRotateCw}
-          className={`${BUTTON_BASE} h-14 w-14 text-xl`}
+          className={`${BUTTON_BASE} ${PRIMARY_SIZE} ${PRIMARY_TEXT}`}
         >
           ↻
         </button>
@@ -231,7 +245,7 @@ export function TouchControls({
           type="button"
           aria-label="하드드롭"
           onPointerDown={handleHardDrop}
-          className={`${BUTTON_BASE} h-16 w-16 text-xs`}
+          className={`${BUTTON_BASE} ${PRIMARY_SIZE} ${SECONDARY_TEXT} border-cyan-300/40 bg-cyan-300/10 text-cyan-100`}
         >
           DROP
         </button>
