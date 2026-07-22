@@ -8,18 +8,19 @@
  * - 좌/우 이동, 소프트드롭: pointerdown 동안 DAS(최초 지연 후) + ARR(반복 간격)로 자동 반복한다.
  *   (useGameEngine의 키보드 DAS_DELAY_MS=150 / ARR_INTERVAL_MS=35와 동일한 값을 사용해
  *   키보드와 터치의 조작감을 통일한다.)
- * - 하드드롭/회전(시계 방향 1개만 제공 - 버튼 수를 줄이기 위해 반시계 회전은 없앰)/홀드:
+ * - 하드드롭/회전(시계 방향 1개만 제공 - 버튼 수를 줄이기 위해 반시계 회전은 없앰):
  *   pointerdown 시 1회만 발동.
  * - 모든 버튼은 touch-action: none + preventDefault로 스크롤/더블탭 확대/컨텍스트 메뉴를 막는다.
  * - 일시정지 버튼은 여기 없다 - 상단 HUD 바로 옮겨졌다(호출부인 SinglePlayerApp 참고).
+ * - HOLD/소프트드롭 버튼도 여기 없다 - 보드 좌우 사이드바(HOLD/NEXT 미리보기 옆)로 옮겨졌다.
+ *   이 파일은 그 사이드바 버튼이 재사용할 수 있도록 공용 스타일 상수와 useHoldRepeat 훅을
+ *   export한다(호출부인 SinglePlayerApp 참고).
  * - 컨테이너는 더 이상 position: fixed가 아니라 모바일 레이아웃의 일반 flex 자식이다.
  *   보드 영역이 항상 남은 공간에 맞춰 줄어들도록 만들어(GameBoard의 responsive 모드),
  *   이 컨트롤 바가 보드 하단을 겹쳐 가리는 문제 자체가 구조적으로 발생하지 않는다.
  *
  * 배치(사용자 요청): 좌/우 두 열이 각각 화면 좌/우 가장자리에 붙는다(justify-between).
- *   좌측 1행 = HOLD(justify-end로 2행의 오른쪽 버튼 ▶ 바로 위에 정렬), 좌측 2행 = ◀ ▶ (이동)
- *   우측 1행 = ▼ 소프트드롭(justify-end로 2행의 오른쪽 버튼 DROP 바로 위에 정렬), 우측 2행 = 회전 + 하드드롭
- * 1행은 상위 컴포넌트(SinglePlayerApp)가 위쪽 여백을 없애 보드 하단선에 바로 붙도록 배치한다.
+ *   좌측 = ◀ ▶ (이동), 우측 = 회전 + 하드드롭
  *
  * 입력: TouchControlsProps(엔진 dispatch류 콜백, 현재 상태) / 출력: 터치 버튼 레이아웃 JSX
  */
@@ -46,13 +47,14 @@ export interface TouchControlsProps {
 }
 
 /** 자동 반복(DAS/ARR) 대상이 되는 액션 종류 */
-type RepeatableAction = "MOVE_LEFT" | "MOVE_RIGHT" | "SOFT_DROP";
+type RepeatableAction = "MOVE_LEFT" | "MOVE_RIGHT";
 
 /**
- * 눌러서 즉시 1회 실행 + 누르고 있으면 자동 반복되는 버튼 하나를 구현하는 내부 훅.
+ * 눌러서 즉시 1회 실행 + 누르고 있으면 자동 반복되는 버튼 하나를 구현하는 훅.
+ * 사이드바로 옮겨진 소프트드롭 버튼(SinglePlayerApp)도 이 훅을 그대로 재사용한다.
  * 입력: 반복 시작/1회 실행 콜백 / 출력: pointerdown/up/leave/cancel에 바인딩할 핸들러
  */
-function useHoldRepeat(fire: (isFirst: boolean) => void) {
+export function useHoldRepeat(fire: (isFirst: boolean) => void) {
   const dasTimeout = useRef<number | undefined>(undefined);
   const arrInterval = useRef<number | undefined>(undefined);
 
@@ -91,17 +93,17 @@ function useHoldRepeat(fire: (isFirst: boolean) => void) {
  * 예전의 무채색(border-white/10, bg-white/5) 톤이 밋밋하다는 피드백을 반영해,
  * 그라디언트 배경 + 컬러 글로우 + 또렷한 눌림 반응으로 바꿔 "누르는 맛"을 살렸다.
  */
-const BUTTON_BASE =
+export const BUTTON_BASE =
   "flex select-none items-center justify-center rounded-2xl border font-bold shadow-[0_2px_0_0_rgba(0,0,0,0.35)] backdrop-blur-sm transition active:translate-y-0.5 active:shadow-none";
 
 /** 이동(◀▶): 시원한 시안 톤 */
 const ACCENT_MOVE =
   "border-cyan-300/50 bg-gradient-to-b from-cyan-400/25 to-cyan-600/10 text-cyan-100 shadow-[0_2px_0_0_rgba(8,145,178,0.5),0_0_14px_rgba(34,211,238,0.35)] active:bg-cyan-400/35";
-/** 소프트드롭(▼ 꾹 내리기): 인디고 톤 */
-const ACCENT_SOFTDROP =
+/** 소프트드롭(▼ 꾹 내리기): 인디고 톤. 이제 이 컴포넌트가 아니라 사이드바(SinglePlayerApp)에서 쓴다 */
+export const ACCENT_SOFTDROP =
   "border-indigo-300/50 bg-gradient-to-b from-indigo-400/25 to-indigo-600/10 text-indigo-100 shadow-[0_2px_0_0_rgba(79,70,229,0.5),0_0_14px_rgba(129,140,248,0.35)] active:bg-indigo-400/35";
-/** 홀드: 홀드 슬롯과 통일감 있는 바이올렛 톤 */
-const ACCENT_HOLD =
+/** 홀드: 홀드 슬롯과 통일감 있는 바이올렛 톤. 이제 이 컴포넌트가 아니라 사이드바(SinglePlayerApp)에서 쓴다 */
+export const ACCENT_HOLD =
   "border-violet-300/50 bg-gradient-to-b from-violet-400/25 to-violet-600/10 text-violet-100 shadow-[0_2px_0_0_rgba(124,58,237,0.5),0_0_14px_rgba(196,181,253,0.35)] active:bg-violet-400/35";
 /** 회전: 활기찬 앰버 톤 */
 const ACCENT_ROTATE =
@@ -112,18 +114,21 @@ const ACCENT_DROP =
 
 /**
  * 모든 버튼을 같은 크기(정사각형, 고정 64px)로 통일한다. flex-1(flex-basis:0%)로 늘어나는
- * 방식은 쓰지 않는다 - 컬럼이 더 이상 stretch되지 않고 콘텐츠 크기에 맞춰 가장자리에
- * 붙는 구조로 바뀌면서, flex-1 자식은 shrink-to-fit 계산에 자기 크기를 온전히 반영하지
- * 못해(min-content 취급) 컬럼 전체가 쪼그라드는 문제가 있었다. 고정폭이면 이 문제가 없고,
- * justify-end가 2행의 오른쪽 버튼 위에 1행 버튼을 정확히 정렬시킬 수 있다.
+ * 방식은 쓰지 않는다 - 컬럼이 stretch되지 않고 콘텐츠 크기에 맞춰 가장자리에 붙는 구조라,
+ * flex-1 자식은 shrink-to-fit 계산에 자기 크기를 온전히 반영하지 못해(min-content 취급)
+ * 컬럼 전체가 쪼그라드는 문제가 있었다. 고정폭이면 이 문제가 없다.
  */
-const FIXED_BUTTON = "w-16 aspect-square";
-/** 아이콘 버튼(이동/소프트드롭/회전)의 폰트 크기 - 버튼이 커진 만큼 텍스트도 함께 키운다 */
-const SQUARE_TEXT = "text-2xl";
+export const FIXED_BUTTON = "w-16 aspect-square";
+/** 아이콘 버튼(이동/소프트드롭/회전)의 폰트 크기 */
+export const SQUARE_TEXT = "text-2xl";
 /** HOLD/DROP처럼 정사각형 안에 짧은 텍스트가 들어가는 경우의 폰트 크기 */
-const SQUARE_LABEL_TEXT = "text-xs";
+export const SQUARE_LABEL_TEXT = "text-xs";
 
-/** 모바일 전용 가상 게임패드. 데스크톱에서는 렌더링되지 않는다(호출부에서 useIsMobile로 조건부 렌더) */
+/**
+ * 모바일 전용 가상 게임패드(하단 바). ◀▶(이동)와 회전/하드드롭만 남아있다 - HOLD와
+ * 소프트드롭은 보드 좌우 사이드바로 옮겨졌다(SinglePlayerApp 참고).
+ * 데스크톱에서는 렌더링되지 않는다(호출부에서 useIsMobile로 조건부 렌더).
+ */
 export function TouchControls({ dispatch, triggerHardDrop, status, sounds }: TouchControlsProps) {
   const disabled = status !== "playing";
   const dispatchRepeatable = useCallback(
@@ -131,12 +136,9 @@ export function TouchControls({ dispatch, triggerHardDrop, status, sounds }: Tou
       if (action === "MOVE_LEFT") {
         dispatch({ type: "MOVE_LEFT" });
         if (playSound) sounds?.move();
-      } else if (action === "MOVE_RIGHT") {
+      } else {
         dispatch({ type: "MOVE_RIGHT" });
         if (playSound) sounds?.move();
-      } else {
-        dispatch({ type: "SOFT_DROP" });
-        if (playSound) sounds?.softDrop();
       }
     },
     [dispatch, sounds],
@@ -144,7 +146,6 @@ export function TouchControls({ dispatch, triggerHardDrop, status, sounds }: Tou
 
   const leftRepeat = useHoldRepeat((isFirst) => dispatchRepeatable("MOVE_LEFT", isFirst));
   const rightRepeat = useHoldRepeat((isFirst) => dispatchRepeatable("MOVE_RIGHT", isFirst));
-  const softDropRepeat = useHoldRepeat((isFirst) => dispatchRepeatable("SOFT_DROP", isFirst));
 
   const handleHardDrop = useCallback(
     (event: React.PointerEvent) => {
@@ -164,15 +165,6 @@ export function TouchControls({ dispatch, triggerHardDrop, status, sounds }: Tou
     [dispatch, sounds],
   );
 
-  const handleHold = useCallback(
-    (event: React.PointerEvent) => {
-      event.preventDefault();
-      dispatch({ type: "HOLD" });
-      sounds?.hold();
-    },
-    [dispatch, sounds],
-  );
-
   return (
     <div
       className={`flex w-full touch-none select-none justify-between px-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] transition-opacity ${
@@ -181,70 +173,44 @@ export function TouchControls({ dispatch, triggerHardDrop, status, sounds }: Tou
       style={{ touchAction: "none" }}
       data-testid="touch-controls"
     >
-      {/* 좌측 열: 화면 왼쪽 가장자리에 붙는다(justify-between). 1행 = HOLD, justify-end로
-          2행의 오른쪽 버튼(▶) 바로 위에 오도록 정렬. 2행 = 좌/우 이동 */}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex w-full justify-end">
-          <button
-            type="button"
-            aria-label="홀드"
-            onPointerDown={handleHold}
-            className={`${BUTTON_BASE} ${ACCENT_HOLD} ${FIXED_BUTTON} ${SQUARE_LABEL_TEXT}`}
-          >
-            HOLD
-          </button>
-        </div>
-        <div className="flex gap-1.5">
-          <button
-            type="button"
-            aria-label="왼쪽 이동"
-            className={`${BUTTON_BASE} ${ACCENT_MOVE} ${FIXED_BUTTON} ${SQUARE_TEXT}`}
-            {...leftRepeat}
-          >
-            ◀
-          </button>
-          <button
-            type="button"
-            aria-label="오른쪽 이동"
-            className={`${BUTTON_BASE} ${ACCENT_MOVE} ${FIXED_BUTTON} ${SQUARE_TEXT}`}
-            {...rightRepeat}
-          >
-            ▶
-          </button>
-        </div>
+      {/* 좌측: 화면 왼쪽 가장자리에 붙는다(justify-between). ◀ ▶ (이동) */}
+      <div className="flex gap-1.5">
+        <button
+          type="button"
+          aria-label="왼쪽 이동"
+          className={`${BUTTON_BASE} ${ACCENT_MOVE} ${FIXED_BUTTON} ${SQUARE_TEXT}`}
+          {...leftRepeat}
+        >
+          ◀
+        </button>
+        <button
+          type="button"
+          aria-label="오른쪽 이동"
+          className={`${BUTTON_BASE} ${ACCENT_MOVE} ${FIXED_BUTTON} ${SQUARE_TEXT}`}
+          {...rightRepeat}
+        >
+          ▶
+        </button>
       </div>
 
-      {/* 우측 열: 화면 오른쪽 가장자리에 붙는다. 1행 = 소프트드롭, justify-end로 2행의
-          오른쪽 버튼(DROP) 바로 위에 오도록 정렬. 2행 = 회전 + 하드드롭 */}
-      <div className="flex flex-col gap-1.5">
-        <div className="flex w-full justify-end">
-          <button
-            type="button"
-            aria-label="소프트드롭"
-            className={`${BUTTON_BASE} ${ACCENT_SOFTDROP} ${FIXED_BUTTON} ${SQUARE_TEXT}`}
-            {...softDropRepeat}
-          >
-            ▼
-          </button>
-        </div>
-        <div className="flex gap-1.5">
-          <button
-            type="button"
-            aria-label="회전"
-            onPointerDown={handleRotate}
-            className={`${BUTTON_BASE} ${ACCENT_ROTATE} ${FIXED_BUTTON} ${SQUARE_TEXT}`}
-          >
-            ↻
-          </button>
-          <button
-            type="button"
-            aria-label="하드드롭"
-            onPointerDown={handleHardDrop}
-            className={`${BUTTON_BASE} ${ACCENT_DROP} ${FIXED_BUTTON} ${SQUARE_LABEL_TEXT}`}
-          >
-            DROP
-          </button>
-        </div>
+      {/* 우측: 화면 오른쪽 가장자리에 붙는다. 회전 + 하드드롭 */}
+      <div className="flex gap-1.5">
+        <button
+          type="button"
+          aria-label="회전"
+          onPointerDown={handleRotate}
+          className={`${BUTTON_BASE} ${ACCENT_ROTATE} ${FIXED_BUTTON} ${SQUARE_TEXT}`}
+        >
+          ↻
+        </button>
+        <button
+          type="button"
+          aria-label="하드드롭"
+          onPointerDown={handleHardDrop}
+          className={`${BUTTON_BASE} ${ACCENT_DROP} ${FIXED_BUTTON} ${SQUARE_LABEL_TEXT}`}
+        >
+          DROP
+        </button>
       </div>
     </div>
   );

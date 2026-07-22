@@ -24,7 +24,7 @@ import { MiniPiece } from "./MiniPiece";
 import { NextQueue } from "./NextQueue";
 import { ScoreBoard } from "./ScoreBoard";
 import { SoundControl } from "./SoundControl";
-import { TouchControls } from "./TouchControls";
+import { ACCENT_HOLD, ACCENT_SOFTDROP, BUTTON_BASE, TouchControls, useHoldRepeat } from "./TouchControls";
 import { EffectPopups } from "./effects/EffectPopups";
 import { TitleScreen } from "./screens/TitleScreen";
 import { CountdownOverlay } from "./screens/CountdownOverlay";
@@ -55,6 +55,27 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
   const { highScore, submitScore } = useHighScore();
   const { shake, popups } = useEffects(state.lastScoreEvent);
   const isMobile = useIsMobile();
+
+  /** 모바일 사이드바 HOLD 버튼: 탭 시 1회만 발동 (TouchControls의 HOLD와 동일한 동작) */
+  const handleHold = useCallback(
+    (event: React.PointerEvent) => {
+      event.preventDefault();
+      dispatch({ type: "HOLD" });
+      sounds.hold();
+    },
+    [dispatch, sounds],
+  );
+
+  /** 모바일 사이드바 소프트드롭 버튼: 누르고 있는 동안 DAS/ARR로 자동 반복 (TouchControls와 동일 동작) */
+  const softDropRepeat = useHoldRepeat(
+    useCallback(
+      (isFirst: boolean) => {
+        dispatch({ type: "SOFT_DROP" });
+        if (isFirst) sounds.softDrop();
+      },
+      [dispatch, sounds],
+    ),
+  );
 
   // 엔진 상태가 "playing"일 때만 배경음악을 재생하고, 그 외(일시정지/게임오버/준비)에는 멈춘다.
   useEffect(() => {
@@ -229,11 +250,24 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
               않는다 - GameBoard가 실제 가로/세로를 측정해 10:20 비율을 유지한 채 들어갈 수 있는
               최대 크기로 스스로 키운다. */}
           <div className="flex min-h-0 w-full max-w-md flex-1 items-start justify-center gap-2">
-            <div className="flex w-14 shrink-0 flex-col items-center gap-1">
+            <div className="flex h-full w-14 shrink-0 flex-col items-center gap-1 self-stretch">
               <span className="text-[9px] font-semibold tracking-widest text-white/40">HOLD</span>
               <div className="flex h-12 w-12 items-center justify-center rounded-md border border-white/10 bg-black/30">
                 <MiniPiece type={state.hold.type} cellSize={10} dimmed={!state.hold.canHold} />
               </div>
+              <div className="flex-1" />
+              {/* HOLD 액션 버튼: 하단 컨트롤 바가 아니라 보드 옆 사이드바에, 맨 아래보다 살짝
+                  위쪽에 온다(mb로 살짝 띄움) - ◀ 버튼과 비슷한 높이대에 오도록 */}
+              <button
+                type="button"
+                aria-label="홀드"
+                onPointerDown={handleHold}
+                disabled={state.status !== "playing"}
+                className={`${BUTTON_BASE} ${ACCENT_HOLD} mb-14 h-12 w-12 touch-none text-[10px] disabled:pointer-events-none disabled:opacity-30`}
+                style={{ touchAction: "none" }}
+              >
+                HOLD
+              </button>
             </div>
 
             <div className="relative h-full flex-1 self-stretch">
@@ -263,7 +297,7 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
               )}
             </div>
 
-            <div className="flex w-14 shrink-0 flex-col items-center gap-1">
+            <div className="flex h-full w-14 shrink-0 flex-col items-center gap-1 self-stretch">
               <span className="text-[9px] font-semibold tracking-widest text-white/40">NEXT</span>
               <div className="flex flex-col items-center gap-1">
                 {nextPreview.slice(0, 3).map((type, index) => (
@@ -276,6 +310,18 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
                   </div>
                 ))}
               </div>
+              <div className="flex-1" />
+              {/* 소프트드롭("아래로") 액션 버튼: 보드 옆 사이드바에, 맨 아래보다 살짝 위쪽에 온다 */}
+              <button
+                type="button"
+                aria-label="소프트드롭"
+                disabled={state.status !== "playing"}
+                className={`${BUTTON_BASE} ${ACCENT_SOFTDROP} mb-14 h-12 w-12 touch-none text-xl disabled:pointer-events-none disabled:opacity-30`}
+                style={{ touchAction: "none" }}
+                {...softDropRepeat}
+              >
+                ▼
+              </button>
             </div>
           </div>
 
