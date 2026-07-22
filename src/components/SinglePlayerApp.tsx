@@ -200,13 +200,11 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
            스크롤이 필요 없고, 보드 하단이 터치 컨트롤에 가려지는 일도 구조적으로 발생하지 않는다. ---- */}
       {phase !== "title" && isMobile && (
         <div className="flex h-full w-full flex-col items-center gap-2 px-3 pt-[max(0.5rem,env(safe-area-inset-top))]">
-          {/* 컴팩트 HUD: 점수를 가장 크게 중앙에 두고(주인공), HOLD/일시정지는 위 줄 양끝에
-              작게, LEVEL·LINES·NEXT는 아래 줄에 보조 정보로 배치한다 */}
+          {/* 컴팩트 HUD: 점수를 가장 크게 중앙에 두고(주인공), 일시정지는 우측 끝에 작게,
+              LEVEL·LINES는 아래 줄 보조 정보로. HOLD/NEXT는 보드 좌우 빈 공간으로 옮겼다(아래 참고) */}
           <div className="flex w-full max-w-md shrink-0 flex-col gap-1 rounded-xl border border-white/10 bg-white/5 px-3 py-2 backdrop-blur-sm">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-black/30">
-                <MiniPiece type={state.hold.type} cellSize={8} dimmed={!state.hold.canHold} />
-              </div>
+              <span className="w-9 shrink-0" aria-hidden="true" />
               <span className="flex-1 text-center font-mono text-3xl font-black tracking-tight text-white drop-shadow-[0_0_14px_rgba(34,211,238,0.35)]">
                 {state.score.toLocaleString("en-US")}
               </span>
@@ -221,33 +219,24 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
               </button>
             </div>
 
-            <div className="flex items-center justify-between gap-2">
-              <span className="text-[9px] font-semibold tracking-widest text-white/40">
-                LV.{state.level} · LINES {state.totalLinesCleared}
-              </span>
-              <div className="flex items-center gap-1">
-                <span className="text-[9px] font-semibold tracking-widest text-white/40">NEXT</span>
-                <div className="flex items-center gap-1">
-                  {nextPreview.slice(0, 3).map((type, index) => (
-                    <div
-                      key={index}
-                      className="flex h-6 w-6 items-center justify-center rounded-md bg-black/30"
-                      style={{ opacity: 1 - index * 0.25 }}
-                    >
-                      <MiniPiece type={type} cellSize={5} />
-                    </div>
-                  ))}
-                </div>
-              </div>
+            <div className="text-center text-[9px] font-semibold tracking-widest text-white/40">
+              LV.{state.level} · LINES {state.totalLinesCleared}
             </div>
           </div>
 
           {/* 보드 영역: flex-1 + min-h-0으로 위/아래 영역이 차지하고 남은 높이를 정확히 채운다.
-              폭 상한을 따로 두지 않는다 - GameBoard가 이 영역의 실제 가로/세로를 측정해
-              10:20 비율을 유지한 채 들어갈 수 있는 최대 크기로 스스로 키운다(너무 작아 보이던
-              문제, 좌우가 비어 보이던 문제 모두 이 정확한 측정 기반 크기 계산으로 해결된다). */}
-          <div className="flex min-h-0 w-full flex-1 items-center justify-center">
-            <div className="relative h-full w-full">
+              HOLD(좌)/NEXT(우)를 보드 옆 빈 공간에 세로로 배치해 상단 HUD를 점수 중심으로 비웠다.
+              가운데 보드 래퍼는 폭 상한 없이 flex-1이라, GameBoard가 남은 실제 가로/세로를 측정해
+              10:20 비율을 유지한 채 들어갈 수 있는 최대 크기로 스스로 키운다. */}
+          <div className="flex min-h-0 w-full max-w-md flex-1 items-stretch justify-center gap-2">
+            <div className="flex w-12 shrink-0 flex-col items-center justify-center gap-1.5">
+              <span className="text-[9px] font-semibold tracking-widest text-white/40">HOLD</span>
+              <div className="flex h-11 w-11 items-center justify-center rounded-md border border-white/10 bg-black/30">
+                <MiniPiece type={state.hold.type} cellSize={9} dimmed={!state.hold.canHold} />
+              </div>
+            </div>
+
+            <div className="relative h-full flex-1">
               <GameBoard
                 board={state.board}
                 active={state.active}
@@ -272,6 +261,21 @@ function SinglePlayerApp({ onOpenMultiplayer }: SinglePlayerAppProps) {
                   onMainMenu={handleMainMenu}
                 />
               )}
+            </div>
+
+            <div className="flex w-12 shrink-0 flex-col items-center justify-center gap-1.5">
+              <span className="text-[9px] font-semibold tracking-widest text-white/40">NEXT</span>
+              <div className="flex flex-col items-center gap-1">
+                {nextPreview.slice(0, 3).map((type, index) => (
+                  <div
+                    key={index}
+                    className="flex h-9 w-9 items-center justify-center rounded-md border border-white/10 bg-black/30"
+                    style={{ opacity: 1 - index * 0.25 }}
+                  >
+                    <MiniPiece type={type} cellSize={7} />
+                  </div>
+                ))}
+              </div>
             </div>
           </div>
 

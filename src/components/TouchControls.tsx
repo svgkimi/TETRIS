@@ -179,70 +179,60 @@ export function TouchControls({ dispatch, triggerHardDrop, status, sounds }: Tou
       style={{ touchAction: "none" }}
       data-testid="touch-controls"
     >
-      {/* 좌측 열: 1행 = HOLD + 빈 스페이서, 2행 = 좌/우 이동 (모두 같은 정사각형 크기) */}
-      <div className="flex flex-1 flex-col gap-1.5">
-        <div className="flex justify-center gap-1.5">
-          <button
-            type="button"
-            aria-label="홀드"
-            onPointerDown={handleHold}
-            className={`${BUTTON_BASE} ${ACCENT_HOLD} ${SQUARE_BUTTON} ${SQUARE_LABEL_TEXT}`}
-          >
-            HOLD
-          </button>
-          <div className="flex-1 aspect-square max-w-11" aria-hidden="true" />
-        </div>
-        <div className="flex justify-center gap-1.5">
-          <button
-            type="button"
-            aria-label="왼쪽 이동"
-            className={`${BUTTON_BASE} ${ACCENT_MOVE} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
-            {...leftRepeat}
-          >
-            ◀
-          </button>
-          <button
-            type="button"
-            aria-label="오른쪽 이동"
-            className={`${BUTTON_BASE} ${ACCENT_MOVE} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
-            {...rightRepeat}
-          >
-            ▶
-          </button>
-        </div>
+      {/* 좌측: ◀ HOLD ▶ - 홀드를 이동 버튼 두 개 사이 가운데에 둔다 */}
+      <div className="flex flex-1 justify-center gap-1.5">
+        <button
+          type="button"
+          aria-label="왼쪽 이동"
+          className={`${BUTTON_BASE} ${ACCENT_MOVE} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
+          {...leftRepeat}
+        >
+          ◀
+        </button>
+        <button
+          type="button"
+          aria-label="홀드"
+          onPointerDown={handleHold}
+          className={`${BUTTON_BASE} ${ACCENT_HOLD} ${SQUARE_BUTTON} ${SQUARE_LABEL_TEXT}`}
+        >
+          HOLD
+        </button>
+        <button
+          type="button"
+          aria-label="오른쪽 이동"
+          className={`${BUTTON_BASE} ${ACCENT_MOVE} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
+          {...rightRepeat}
+        >
+          ▶
+        </button>
       </div>
 
-      {/* 우측 열: 1행 = 소프트드롭(꾹 눌러 내리기) + 빈 스페이서, 2행 = 회전 + 하드드롭 */}
-      <div className="flex flex-1 flex-col gap-1.5">
-        <div className="flex justify-center gap-1.5">
-          <button
-            type="button"
-            aria-label="소프트드롭"
-            className={`${BUTTON_BASE} ${ACCENT_SOFTDROP} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
-            {...softDropRepeat}
-          >
-            ▼
-          </button>
-          <div className="flex-1 aspect-square max-w-11" aria-hidden="true" />
-        </div>
-        <div className="flex justify-center gap-1.5">
-          <button
-            type="button"
-            aria-label="회전"
-            onPointerDown={handleRotate}
-            className={`${BUTTON_BASE} ${ACCENT_ROTATE} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
-          >
-            ↻
-          </button>
-          <button
-            type="button"
-            aria-label="하드드롭"
-            onPointerDown={handleHardDrop}
-            className={`${BUTTON_BASE} ${ACCENT_DROP} ${SQUARE_BUTTON} ${SQUARE_LABEL_TEXT}`}
-          >
-            DROP
-          </button>
-        </div>
+      {/* 우측: 회전 ▼(소프트드롭) DROP - 소프트드롭을 회전/하드드롭 사이 가운데에 둔다 */}
+      <div className="flex flex-1 justify-center gap-1.5">
+        <button
+          type="button"
+          aria-label="회전"
+          onPointerDown={handleRotate}
+          className={`${BUTTON_BASE} ${ACCENT_ROTATE} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
+        >
+          ↻
+        </button>
+        <button
+          type="button"
+          aria-label="소프트드롭"
+          className={`${BUTTON_BASE} ${ACCENT_SOFTDROP} ${SQUARE_BUTTON} ${SQUARE_TEXT}`}
+          {...softDropRepeat}
+        >
+          ▼
+        </button>
+        <button
+          type="button"
+          aria-label="하드드롭"
+          onPointerDown={handleHardDrop}
+          className={`${BUTTON_BASE} ${ACCENT_DROP} ${SQUARE_BUTTON} ${SQUARE_LABEL_TEXT}`}
+        >
+          DROP
+        </button>
       </div>
     </div>
   );
