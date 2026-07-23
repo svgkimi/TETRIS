@@ -150,6 +150,13 @@ export interface MusicControls {
   readonly volume: number;
   /** 배경음악 볼륨을 변경한다 (0~1). 재생 중이면 즉시 반영되고 LocalStorage에 저장된다 */
   readonly setVolume: (volume: number) => void;
+  /**
+   * 게임 레벨의 낙하 속도 배율(calculateSpeedMultiplier)에 맞춰 배경음악 템포를 조절한다.
+   * 1보다 크면 더 빠르게(스텝 간격이 짧아짐) 재생된다. 재생 중이면 다음 스텝부터 즉시
+   * 반영되고, 지금까지 진행된 스텝 위치(musicStepRef)는 그대로 유지되어 곡이 처음부터
+   * 다시 시작되는 끊김 없이 자연스럽게 빨라진다.
+   */
+  readonly setSpeedMultiplier: (multiplier: number) => void;
 }
 
 /** useSound 훅의 반환 타입 */
@@ -491,12 +498,19 @@ export function useSound(): UseSoundResult {
   const musicTimerRef = useRef<number | null>(null);
   /** 다음에 재생할 스텝 인덱스 */
   const musicStepRef = useRef(0);
+  /**
+   * 현재 레벨의 낙하 속도 배율(calculateSpeedMultiplier). 1보다 크면 배경음악 템포도
+   * 그만큼 빨라진다(스텝 간격 = stepMs / speedMultiplier) - 게임이 빨라지는 긴장감을
+   * 배경음악에도 그대로 반영한다.
+   */
+  const speedMultiplierRef = useRef(1);
 
   /** 현재 선택된 트랙의 한 스텝(리드+베이스 음)을 재생한다 */
   const playMusicStep = useCallback(() => {
     const track = MUSIC_TRACKS[trackIndexRef.current] ?? MUSIC_TRACKS[0];
     const step = musicStepRef.current;
-    const stepSec = track.stepMs / 1000;
+    // 음 길이도 실제 스텝 간격(템포)에 맞춰 함께 줄여야 빨라진 배경음악에서 음이 겹치지 않는다.
+    const stepSec = track.stepMs / speedMultiplierRef.current / 1000;
     const leadFreq = track.lead[step % track.lead.length];
     const bassFreq = track.bass[step % track.bass.length];
     if (leadFreq !== null) {
@@ -517,8 +531,26 @@ export function useSound(): UseSoundResult {
     const track = MUSIC_TRACKS[trackIndexRef.current] ?? MUSIC_TRACKS[0];
     musicStepRef.current = 0;
     playMusicStep();
-    musicTimerRef.current = window.setInterval(playMusicStep, track.stepMs);
+    musicTimerRef.current = window.setInterval(playMusicStep, track.stepMs / speedMultiplierRef.current);
   }, [playMusicStep]);
+
+  /**
+   * 배경음악 템포를 레벨의 속도 배율에 맞춰 조절한다. 재생 중이면 진행 중인 인터벌만
+   * 새 간격으로 다시 걸고(musicStepRef는 건드리지 않아 곡이 처음부터 다시 시작되지 않는다),
+   * 재생 중이 아니면 다음 재생 시 반영되도록 배율만 저장해둔다.
+   */
+  const setSpeedMultiplier = useCallback(
+    (multiplier: number) => {
+      const clamped = Math.max(0.1, multiplier);
+      if (speedMultiplierRef.current === clamped) return;
+      speedMultiplierRef.current = clamped;
+      if (musicTimerRef.current === null) return;
+      window.clearInterval(musicTimerRef.current);
+      const track = MUSIC_TRACKS[trackIndexRef.current] ?? MUSIC_TRACKS[0];
+      musicTimerRef.current = window.setInterval(playMusicStep, track.stepMs / clamped);
+    },
+    [playMusicStep],
+  );
 
   /** 배경음악 루프 재생 시작 (이미 재생 중이면 아무 동작 안 함) */
   const startMusic = useCallback(() => {
@@ -583,8 +615,9 @@ export function useSound(): UseSoundResult {
       tracks: musicTrackList,
       volume: musicVolume,
       setVolume,
+      setSpeedMultiplier,
     }),
-    [startMusic, stopMusic, trackIndex, setTrackIndex, musicTrackList, musicVolume, setVolume],
+    [startMusic, stopMusic, trackIndex, setTrackIndex, musicTrackList, musicVolume, setVolume, setSpeedMultiplier],
   );
 
   return { enabled, toggle, sounds, music };
